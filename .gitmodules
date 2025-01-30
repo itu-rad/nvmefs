@@ -6,3 +6,9 @@
 	path = extension-ci-tools
 	url = https://github.com/duckdb/extension-ci-tools
 	branch = main
+[submodule "third-party/liburing"]
+	path = third-party/liburing
+	url = https://github.com/axboe/liburing.git
+[submodule "third-party/xnvme"]
+	path = third-party/xnvme
+	url = https://github.com/xnvme/xnvme.git

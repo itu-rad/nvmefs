@@ -1,0 +1,23 @@
+# name: test/sql/nvmefs.test
+# description: test nvmefs extension
+# group: [nvmefs]
+
+# Before we load the extension, this will fail
+statement error
+SELECT nvmefs('Sam');
+----
+Catalog Error: Scalar Function with name nvmefs does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require nvmefs
+
+# Confirm the extension works
+query I
+SELECT nvmefs('Sam');
+----
+Nvmefs Sam 🐥
+
+query I
+SELECT nvmefs_openssl_version('Michael') ILIKE 'Nvmefs Michael, my linked OpenSSL version is OpenSSL%';
+----
+true

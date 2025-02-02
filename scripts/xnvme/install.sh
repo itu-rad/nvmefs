@@ -15,8 +15,7 @@
 #   available and fetched. If not, search for how 
 #   to fetch a git submodules files.
 
-# OLD_PWD="${PWD}"
-# XNVME_DEV_ROOT="./third-party/xnvme"
+XNVME_DEV_ROOT="./third-party/xnvme"
 
 # Change working directory
 cd $XNVME_DEV_ROOT

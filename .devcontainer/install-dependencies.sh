@@ -6,7 +6,7 @@ bash -i ./scripts/xnvme/install.sh
 # Install dev dependencies
 apk update
 apk add --upgrade libcurl
-apk --no-cache add cmake ccache gnupg vim curl zip
+apk --no-cache add cmake ccache vim curl zip
 
 # Setup tools directory
 mkdir -p /root/.tools/bin

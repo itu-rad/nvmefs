@@ -2,6 +2,9 @@
 	"name": "nvmefs",
 	"image": "ghcr.io/xnvme/xnvme-deps-alpine-latest:next",
 	"postCreateCommand": "bash -i .devcontainer/install-dependencies.sh",
+	"containerEnv": {
+		"SHELL": "/bin/bash"
+	},
 	"customizations": {
 		"vscode": {
 			"extensions": [

@@ -1,6 +1,9 @@
-from ghcr.io/xnvme/xnvme-deps-alpine-latest:next
+FROM mcr.microsoft.com/devcontainers/cpp:ubuntu-22.04
 
-RUN apk update && apk --no-cache add gpg gnupg
-RUN echo "export GPG_TTY=$(tty)" >> ~/.bashrc
+WORKDIR /opt
+COPY ../third-party/xnvme/toolbox ./toolbox
+RUN bash -e ./toolbox/pkgs/ubuntu-jammy.sh
+
+RUN rm -rf /usr/local/vcpkg
 
 CMD ["bash"]

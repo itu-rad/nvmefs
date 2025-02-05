@@ -1,16 +1,15 @@
 #!/bin/bash
 
 # Install xnvme libraries 
-bash -i ./scripts/xnvme/install.sh
+sudo bash -i ./scripts/xnvme/install.sh
 
 # Install dev dependencies
-apk update
-apk add --upgrade libcurl
-apk --no-cache add cmake ccache vim curl zip
+sudo apt update
+sudo apt install -y ccache vim curl zip
 
 # Setup tools directory
-mkdir -p /root/.tools/bin
-cd /root/.tools
+mkdir -p ~/.tools/bin
+cd ~/.tools
 
 git clone https://github.com/microsoft/vcpkg.git
 cd vcpkg && ./bootstrap-vcpkg.sh

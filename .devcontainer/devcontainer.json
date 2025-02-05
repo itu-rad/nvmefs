@@ -1,7 +1,8 @@
 {
 	"name": "nvmefs",
 	"build": {
-		"dockerfile": "Dockerfile"
+		"dockerfile": "Dockerfile",
+		"context": ".."
 	},
 	"postCreateCommand": "bash -i .devcontainer/install-dependencies.sh",
 	"containerEnv": {

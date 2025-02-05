@@ -9,7 +9,8 @@
 				"VisualStudioExptTeam.intellicode-api-usage-examples",
 				"ms-vscode.cpptools",
 				"ms-vscode.cpptools-extension-pack",
-				"ms-vscode.cmake-tools"
+				"ms-vscode.cmake-tools",
+				"EditorConfig.EditorConfig"
 			]
 		}
 	}

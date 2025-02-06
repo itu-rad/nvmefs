@@ -6,7 +6,7 @@ namespace duckdb {
 
 	class NvmeFileHandle : public FileHandle {
 	public:
-		NvmeFileHandle(FileSystem &file_system, string &path);
+		NvmeFileHandle(FileSystem &file_system, string path);
 		~NvmeFileHandle() override;
 
 		void Read(void *buffer, idx_t nr_bytes, idx_t location);

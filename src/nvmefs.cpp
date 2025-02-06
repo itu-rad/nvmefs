@@ -2,7 +2,7 @@
 
 namespace duckdb {
 
-	NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string &path) : FileHandle(file_system, path) {
+	NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path) : FileHandle(file_system, path) {
 
 	}
 

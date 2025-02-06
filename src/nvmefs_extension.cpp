@@ -13,14 +13,31 @@
 
 namespace duckdb
 {
+	struct NvmeFsHelloFunctionData : public TableFunctionData
+	{
+		NvmeFsHelloFunctionData()
+		{
+		}
+
+		bool finished = false;
+	};
 
 	static void NvmefsHelloWorld(ClientContext &context, TableFunctionInput &data_p, DataChunk &output)
 	{
-		auto name = context.db->GetFileSystem().GetName();
+		auto &data = data_p.bind_data->CastNoConst<NvmeFsHelloFunctionData>();
+
+		if (data.finished)
+		{
+			return;
+		}
+
+		std::string name = context.db->GetFileSystem().GetName();
 		idx_t cardinality = 1;
 
 		output.SetValue(0, 0, Value(name));
 		output.SetCardinality(cardinality);
+
+		data.finished = true;
 	}
 
 	static unique_ptr<FunctionData> NvmefsHelloWorldBind(ClientContext &ctx, TableFunctionBindInput &input, vector<LogicalType> &return_types, vector<string> &names)
@@ -28,7 +45,10 @@ namespace duckdb
 		names.emplace_back("file_system");
 		return_types.emplace_back(LogicalType::VARCHAR);
 
-		return nullptr;
+		auto result = make_uniq<NvmeFsHelloFunctionData>();
+		result->finished = false;
+
+		return std::move(result);
 	}
 
 	inline void NvmefsScalarFun(DataChunk &args, ExpressionState &state, Vector &result)

@@ -84,3 +84,49 @@ After running these steps, you can install and load your extension using the reg
 INSTALL nvmefs
 LOAD nvmefs
 ```
+
+## Development
+
+Developing the extension requires the tools provided by the DuckDB team. To simplify setup, we have created a development container (dev container) that includes all the necessary tools for contributing to this extension.
+
+### IDE Setup
+
+#### CLion
+
+DuckDB provides a guide for using CLion, created by JetBrains. If you prefer CLion, follow the official setup guide: [Setting up CLion](https://github.com/duckdb/extension-template?tab=readme-ov-file#setting-up-clion).
+
+#### VS Code
+
+For VS Code, we strongly recommend using the Development Container. This container automatically installs all required dependencies and extensions.
+
+##### Configuring VS Code
+
+After launching the development container, some additional settings must be configured for CMake to function correctly:
+
+1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P` on macOS).
+2. Search for and select **Preferences: Open Workspace Settings**.
+3. In the settings UI, locate `cmake.sourceDirectory`.
+4. Click **Edit in settings.json** and set the value to:
+
+   ```json
+   "cmake.sourceDirectory": "${workspaceFolder}/duckdb"
+   ```
+
+5. (Optional) If you use **Ninja** as the generator, add the following setting:
+
+   ```json
+   "cmake.generator": "Ninja"
+   ```
+
+#### Example `.vscode/settings.json`
+
+Your final `.vscode/settings.json` should look like this:
+
+```json
+{
+    "cmake.sourceDirectory": "${workspaceFolder}/duckdb",
+    "cmake.generator": "Ninja" // OPTIONAL
+}
+```
+
+This configuration ensures proper integration with the CMake extension in VS Code, streamlining the development workflow.

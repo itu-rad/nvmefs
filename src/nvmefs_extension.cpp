@@ -11,66 +11,100 @@
 // OpenSSL linked through vcpkg
 #include <openssl/opensslv.h>
 
-namespace duckdb {
+namespace duckdb
+{
 
-inline void NvmefsScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
-    auto &name_vector = args.data[0];
-    UnaryExecutor::Execute<string_t, string_t>(
-	    name_vector, result, args.size(),
-	    [&](string_t name) {
-			return StringVector::AddString(result, "Nvmefs "+name.GetString()+" 🐥");;
-        });
-}
+	static void NvmefsHelloWorld(ClientContext &context, TableFunctionInput &data_p, DataChunk &output)
+	{
+		auto name = context.db->GetFileSystem().GetName();
+		idx_t cardinality = 1;
 
-inline void NvmefsOpenSSLVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
-    auto &name_vector = args.data[0];
-    UnaryExecutor::Execute<string_t, string_t>(
-	    name_vector, result, args.size(),
-	    [&](string_t name) {
-			return StringVector::AddString(result, "Nvmefs " + name.GetString() +
-                                                     ", my linked OpenSSL version is " +
-                                                     OPENSSL_VERSION_TEXT );;
-        });
-}
+		output.SetValue(0, 0, Value(name));
+		output.SetCardinality(cardinality);
+	}
 
-static void LoadInternal(DatabaseInstance &instance) {
-    // Register a scalar function
-    auto nvmefs_scalar_function = ScalarFunction("nvmefs", {LogicalType::VARCHAR}, LogicalType::VARCHAR, NvmefsScalarFun);
-    ExtensionUtil::RegisterFunction(instance, nvmefs_scalar_function);
+	static unique_ptr<FunctionData> NvmefsHelloWorldBind(ClientContext &ctx, TableFunctionBindInput &input, vector<LogicalType> &return_types, vector<string> &names)
+	{
+		names.emplace_back("file_system");
+		return_types.emplace_back(LogicalType::VARCHAR);
 
-    // Register another scalar function
-    auto nvmefs_openssl_version_scalar_function = ScalarFunction("nvmefs_openssl_version", {LogicalType::VARCHAR},
-                                                LogicalType::VARCHAR, NvmefsOpenSSLVersionScalarFun);
-    ExtensionUtil::RegisterFunction(instance, nvmefs_openssl_version_scalar_function);
-}
+		return nullptr;
+	}
 
-void NvmefsExtension::Load(DuckDB &db) {
-	LoadInternal(*db.instance);
-}
-std::string NvmefsExtension::Name() {
-	return "nvmefs";
-}
+	inline void NvmefsScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
+	{
+		auto &name_vector = args.data[0];
+		UnaryExecutor::Execute<string_t, string_t>(
+			name_vector, result, args.size(),
+			[&](string_t name)
+			{
+				return StringVector::AddString(result, "Nvmefs " + name.GetString() + " 🐥");
+				;
+			});
+	}
 
-std::string NvmefsExtension::Version() const {
+	inline void NvmefsOpenSSLVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
+	{
+		auto &name_vector = args.data[0];
+		UnaryExecutor::Execute<string_t, string_t>(
+			name_vector, result, args.size(),
+			[&](string_t name)
+			{
+				return StringVector::AddString(result, "Nvmefs " + name.GetString() +
+														   ", my linked OpenSSL version is " +
+														   OPENSSL_VERSION_TEXT);
+				;
+			});
+	}
+
+	static void LoadInternal(DatabaseInstance &instance)
+	{
+		// Register a scalar function
+		auto nvmefs_scalar_function = ScalarFunction("nvmefs", {LogicalType::VARCHAR}, LogicalType::VARCHAR, NvmefsScalarFun);
+		ExtensionUtil::RegisterFunction(instance, nvmefs_scalar_function);
+
+		// Register another scalar function
+		auto nvmefs_openssl_version_scalar_function = ScalarFunction("nvmefs_openssl_version", {LogicalType::VARCHAR},
+																	 LogicalType::VARCHAR, NvmefsOpenSSLVersionScalarFun);
+		ExtensionUtil::RegisterFunction(instance, nvmefs_openssl_version_scalar_function);
+
+		TableFunction nvmefs_hello_world_function("nvmefs_hello", {}, NvmefsHelloWorld, NvmefsHelloWorldBind);
+		ExtensionUtil::RegisterFunction(instance, nvmefs_hello_world_function);
+	}
+
+	void NvmefsExtension::Load(DuckDB &db)
+	{
+		LoadInternal(*db.instance);
+	}
+	std::string NvmefsExtension::Name()
+	{
+		return "nvmefs";
+	}
+
+	std::string NvmefsExtension::Version() const
+	{
 #ifdef EXT_VERSION_NVMEFS
-	return EXT_VERSION_NVMEFS;
+		return EXT_VERSION_NVMEFS;
 #else
-	return "";
+		return "";
 #endif
-}
+	}
 
 } // namespace duckdb
 
-extern "C" {
+extern "C"
+{
 
-DUCKDB_EXTENSION_API void nvmefs_init(duckdb::DatabaseInstance &db) {
-    duckdb::DuckDB db_wrapper(db);
-    db_wrapper.LoadExtension<duckdb::NvmefsExtension>();
-}
+	DUCKDB_EXTENSION_API void nvmefs_init(duckdb::DatabaseInstance &db)
+	{
+		duckdb::DuckDB db_wrapper(db);
+		db_wrapper.LoadExtension<duckdb::NvmefsExtension>();
+	}
 
-DUCKDB_EXTENSION_API const char *nvmefs_version() {
-	return duckdb::DuckDB::LibraryVersion();
-}
+	DUCKDB_EXTENSION_API const char *nvmefs_version()
+	{
+		return duckdb::DuckDB::LibraryVersion();
+	}
 }
 
 #ifndef DUCKDB_EXTENSION_MAIN

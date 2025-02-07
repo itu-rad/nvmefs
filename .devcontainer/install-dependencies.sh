@@ -18,3 +18,12 @@ VCPKG_ROOT=~/.tools/vcpkg
 
 echo "export VCPKG_ROOT='$VCPKG_ROOT'" >> ~/.bashrc
 echo "export PATH='$PATH:$VCPKG_ROOT'" >> ~/.bashrc 
+
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+
+source ~/.bashrc
+
+nvm install --lts
+nvm use --lts
+
+npm install -g editorconfig

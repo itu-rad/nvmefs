@@ -2,6 +2,7 @@
 
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/map.hpp"
+#include <libxnvme.h>
 
 #define NVMEFS_PATH_PREFIX "nvme://"
 
@@ -12,6 +13,7 @@ namespace duckdb
 	{
 	public:
 		NvmeFileHandle(FileSystem &file_system, string path);
+		NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid, xnvme_dev *device);
 		~NvmeFileHandle() override;
 
 		void Read(void *buffer, idx_t nr_bytes, idx_t location);
@@ -22,6 +24,7 @@ namespace duckdb
 		void Close() {}
 
 	protected:
+		string device;
 		uint64_t placement_identifier;
 	};
 

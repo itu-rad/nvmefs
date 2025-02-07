@@ -1,6 +1,6 @@
 #include "include/nvmefs.hpp"
 #include "duckdb/common/string_util.hpp"
-#include <libxnvme.h>
+
 
 namespace duckdb
 {
@@ -12,6 +12,33 @@ namespace duckdb
 	NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path) : FileHandle(file_system, path)
 	{
 	}
+
+	NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device) : NvmeFileHandle(file_system, path)
+	{
+		this->device = device;
+
+		// Get placemenet handle indentifier and create placement idenetifier
+		// Inspiration: https://github.com/xnvme/xnvme/blob/be52a634c139647b14940ba8a3ff254d6b1ca8c4/tools/xnvme.c#L833
+
+		struct xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
+		uint32_t nsid = xnvme_dev_get_nsid(device);
+
+		struct xnvme_spec_ruhs *ruhs = nullptr;
+		uint32_t limit = 8;
+		uint32_t ruhs_nbytes = sizeof(*ruhs) + limit + sizeof(struct xnvme_spec_ruhs_desc);
+
+		ruhs = (struct xnvme_spec_ruhs*) xnvme_buf_alloc(device, ruhs_nbytes);
+		memset(ruhs, 0, ruhs_nbytes);
+
+		xnvme_nvm_mgmt_recv(&ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
+
+		uint16_t phid = ruhs->desc[plid_idx].pi;
+
+		this->placement_identifier = phid << 16;
+
+		xnvme_buf_free(device, ruhs);
+	}
+
 
 	NvmeFileHandle::~NvmeFileHandle() = default;
 
@@ -52,7 +79,7 @@ namespace duckdb
 		// Get and add placement identifier for path
 		uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
 
-		unique_ptr<NvmeFileHandle> file_handler = make_uniq<NvmeFileHandle>();
+		unique_ptr<NvmeFileHandle> file_handler = make_uniq<NvmeFileHandle>(this, path, placement_identifier_index, device);
 
 		return std::move(file_handler);
 	}
@@ -90,12 +117,14 @@ namespace duckdb
 	{
 	}
 
-	int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes)
+	int64_t NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes)
 	{
 	}
 
 	unique_ptr<NvmeFileHandle> NvmeFileSystem::CreateHandle(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener = nullptr)
 	{
+
+
 	}
 
 	bool NvmeFileSystem::CanHandleFile(const string &path)

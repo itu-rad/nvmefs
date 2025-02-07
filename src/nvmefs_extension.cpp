@@ -8,6 +8,8 @@
 #include "duckdb/main/extension_util.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 
+#include "nvmefs.hpp"
+
 // OpenSSL linked through vcpkg
 #include <openssl/opensslv.h>
 
@@ -31,18 +33,22 @@ namespace duckdb
 			return;
 		}
 
-		std::string name = context.db->GetFileSystem().GetName();
-		idx_t cardinality = 1;
+		vector<std::string> filesystems = context.db->config.file_system->ListSubSystems();
+		idx_t chunk_count = 0;
 
-		output.SetValue(0, 0, Value(name));
-		output.SetCardinality(cardinality);
+		for (auto fs : filesystems){
+			output.SetValue(0, chunk_count, Value(fs));
+			chunk_count++;
+		}
+		output.SetValue(0, chunk_count++, Value(context.db->config.file_system->GetName()));
+		output.SetCardinality(chunk_count);
 
 		data.finished = true;
 	}
 
 	static unique_ptr<FunctionData> NvmefsHelloWorldBind(ClientContext &ctx, TableFunctionBindInput &input, vector<LogicalType> &return_types, vector<string> &names)
 	{
-		names.emplace_back("file_system");
+		names.emplace_back("file_systems");
 		return_types.emplace_back(LogicalType::VARCHAR);
 
 		auto result = make_uniq<NvmeFsHelloFunctionData>();
@@ -79,6 +85,11 @@ namespace duckdb
 
 	static void LoadInternal(DatabaseInstance &instance)
 	{
+		// Register NvmeFileSystem
+		auto &fs = instance.GetFileSystem();
+
+		fs.RegisterSubSystem(make_uniq<NvmeFileSystem>());
+
 		// Register a scalar function
 		auto nvmefs_scalar_function = ScalarFunction("nvmefs", {LogicalType::VARCHAR}, LogicalType::VARCHAR, NvmefsScalarFun);
 		ExtensionUtil::RegisterFunction(instance, nvmefs_scalar_function);

@@ -62,7 +62,7 @@ namespace duckdb
 
 	unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener = nullptr)
 	{
-		const string device_path = "/dev/ng0n1"; // TODO: Temporary device path. Should come from settings
+		const string device_path = "/dev/ng1n1"; // TODO: Temporary device path. Should come from settings
 
 		// TODO: Read settings from FileOpener if pressent. Else use defaults...
 

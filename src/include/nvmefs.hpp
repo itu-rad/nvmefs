@@ -35,6 +35,10 @@ namespace duckdb
 		int64_t Write(FileHandle &handle, void *buffer, int64_t nr_bytes) override;
 		bool CanHandleFile(const string &fpath) override;
 
+		string GetName() const {
+			return "NvmeFileSystem";
+		}
+
 	protected:
 		unique_ptr<NvmeFileHandle> CreateHandle(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener = nullptr);
 		uint8_t GetPlacementIdentifierIndexOrDefault(const string &path);

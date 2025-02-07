@@ -29,8 +29,8 @@ namespace duckdb
 
 	NvmeFileSystem::NvmeFileSystem()
 	{
-		allocated_paths.push_back("xnvme:///tmp");
-		allocated_placement_identifiers["xnvme:///tmp"] = 1;
+		allocated_paths.push_back("nvme:///tmp");
+		allocated_placement_identifiers["nvme:///tmp"] = 1;
 	}
 
 	unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener = nullptr)

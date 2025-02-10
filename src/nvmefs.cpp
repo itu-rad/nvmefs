@@ -8,7 +8,6 @@ namespace duckdb
 	/***************************
 	 * NvmeFileHandle
 	 ****************************/
-
 	NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path) : FileHandle(file_system, path)
 	{
 	}
@@ -60,7 +59,7 @@ namespace duckdb
 		allocated_placement_identifiers["nvme:///tmp"] = 1;
 	}
 
-	unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener = nullptr)
+	unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener)
 	{
 		const string device_path = "/dev/ng1n1"; // TODO: Temporary device path. Should come from settings
 
@@ -79,7 +78,7 @@ namespace duckdb
 		// Get and add placement identifier for path
 		uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
 
-		unique_ptr<NvmeFileHandle> file_handler = make_uniq<NvmeFileHandle>(this, path, placement_identifier_index, device);
+		unique_ptr<NvmeFileHandle> file_handler = make_uniq<NvmeFileHandle>(*this, path, placement_identifier_index, device);
 
 		return std::move(file_handler);
 	}
@@ -121,7 +120,7 @@ namespace duckdb
 	{
 	}
 
-	unique_ptr<NvmeFileHandle> NvmeFileSystem::CreateHandle(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener = nullptr)
+	unique_ptr<NvmeFileHandle> NvmeFileSystem::CreateHandle(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener)
 	{
 
 

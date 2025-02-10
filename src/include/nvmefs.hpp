@@ -24,13 +24,14 @@ namespace duckdb
 		void Close() {}
 
 	protected:
-		string device;
-		uint64_t placement_identifier;
+		xnvme_dev *device;
+		uint32_t placement_identifier;
 	};
 
 	class NvmeFileSystem : public FileSystem
 	{
 	public:
+		NvmeFileSystem();
 		unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener = nullptr) override;
 		void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 		void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;

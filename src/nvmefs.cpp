@@ -44,22 +44,38 @@ namespace duckdb
 	{
 	}
 
-	unique_ptr<xnvme_cmd_ctx> NvmeFileHandle::PrepareWriteCommand()
+	unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareWriteCommand()
 	{
-		auto ctx = duckdb::make_uniq<xnvme_cmd_ctx>(xnvme_cmd_ctx_from_dev(device));
+		xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
+		uint32_t nsid = xnvme_dev_get_nsid(device);
 
-		ctx->cmd.common.cdw13 = placement_identifier;
+		ctx.cmd.common.cdw13 = placement_identifier;
 
-		return std::move(ctx);
+		const xnvme_geo *geo = xnvme_dev_get_geo(device);
+
+		unique_ptr<NvmeCmdContext> nvme_ctx = make_uniq<NvmeCmdContext>();
+		nvme_ctx->ctx = ctx;
+		nvme_ctx->namespace_id = nsid;
+		nvme_ctx->lba_size = geo->lba_nbytes;
+
+		return std::move(nvme_ctx);
 	}
 
-	unique_ptr<xnvme_cmd_ctx> NvmeFileHandle::PrepareReadCommand()
+	unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareReadCommand()
 	{
-		auto ctx = duckdb::make_uniq<xnvme_cmd_ctx>(xnvme_cmd_ctx_from_dev(device));
+		xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
+		uint32_t nsid = xnvme_dev_get_nsid(device);
 
-		ctx->cmd.common.cdw13 = placement_identifier;
+		ctx.cmd.common.cdw13 = placement_identifier;
 
-		return std::move(ctx);
+		const xnvme_geo *geo = xnvme_dev_get_geo(device);
+
+		unique_ptr<NvmeCmdContext> nvme_ctx = make_uniq<NvmeCmdContext>();
+		nvme_ctx->ctx = ctx;
+		nvme_ctx->namespace_id = nsid;
+		nvme_ctx->lba_size = geo->lba_nbytes;
+
+		return std::move(nvme_ctx);
 	}
 
 	/***************************
@@ -119,33 +135,29 @@ namespace duckdb
 
 	void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location)
 	{
-		unique_ptr<xnvme_cmd_ctx> ctx = handle.Cast<NvmeFileHandle>().PrepareWriteCommand();
+		unique_ptr<NvmeCmdContext> nvme_ctx = handle.Cast<NvmeFileHandle>().PrepareReadCommand();
 
-		int namespace_id = 0;	  // TODO: Get namespace id from device
-		uint64_t lba_size = 2048; // TODO: Get lba size from device
+		uint64_t number_of_lbas = nr_bytes / nvme_ctx->lba_size;
 
-		uint64_t number_of_lbas = nr_bytes / lba_size;
-
-		int err = xnvme_nvm_write(ctx.get(), namespace_id, location, number_of_lbas, buffer, nullptr);
+		int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, number_of_lbas, buffer, nullptr);
 		if (err)
 		{
 			// TODO: Handle error
+			throw IOException("Error reading from NVMe device");
 		}
 	}
 
 	void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location)
 	{
-		unique_ptr<xnvme_cmd_ctx> ctx = handle.Cast<NvmeFileHandle>().PrepareWriteCommand();
+		unique_ptr<NvmeCmdContext> nvme_ctx = handle.Cast<NvmeFileHandle>().PrepareReadCommand();
 
-		int namespace_id = 0;	  // TODO: Get namespace id from device
-		uint64_t lba_size = 2048; // TODO: Get lba size from device
+		uint64_t number_of_lbas = nr_bytes / nvme_ctx->lba_size;
 
-		uint64_t number_of_lbas = nr_bytes / lba_size;
-
-		int err = xnvme_nvm_write(ctx.get(), namespace_id, location, number_of_lbas, buffer, nullptr);
+		int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, number_of_lbas, buffer, nullptr);
 		if (err)
 		{
 			// TODO: Handle error
+			throw IOException("Error writing to NVMe device");
 		}
 	}
 

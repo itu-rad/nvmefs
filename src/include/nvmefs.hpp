@@ -10,6 +10,13 @@
 namespace duckdb
 {
 
+	struct NvmeCmdContext
+	{
+		xnvme_cmd_ctx ctx;
+		uint32_t namespace_id;
+		uint64_t lba_size;
+	};
+
 	class NvmeFileHandle : public FileHandle
 	{
 	public:
@@ -21,8 +28,8 @@ namespace duckdb
 		int64_t Read(void *buffer, idx_t nr_bytes);
 		int64_t Write(void *buffer, idx_t nr_bytes);
 
-		unique_ptr<xnvme_cmd_ctx> PrepareWriteCommand();
-		unique_ptr<xnvme_cmd_ctx> PrepareReadCommand();
+		unique_ptr<NvmeCmdContext> PrepareWriteCommand();
+		unique_ptr<NvmeCmdContext> PrepareReadCommand();
 
 		void Close() {}
 

@@ -52,20 +52,28 @@ namespace duckdb
 		FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE | FileOpenFlags::FILE_FLAGS_FILE_CREATE;
 
 		unique_ptr<FileHandle> fh = fs.OpenFile("nvme://hello", flags);
-		NvmeFileHandle &fht = (NvmeFileHandle &) fh;
-		string hello = "Hello World!";
+
+
+		string hello = "Hello World from Device!";
 		void *hel = (void*) hello.data();
+		int64_t h_size = hello.size();
+		idx_t loc = 0;
 
-		fs.Write(fht, hel, int64_t(hello.size()), idx_t(0));
+		fh->Write(hel, h_size, loc);
 
-		void *buf;
-		fs.Read(fht, buf, hello.size(), 0);
+		void *buf = (void *) new char[h_size];
 
-		string test = *(static_cast<string*>(buf));
+		fh->Read(buf, h_size, loc);
+
+		string val(static_cast<char*>(buf), h_size);
 		uint32_t chunk_count = 0;
-		output.SetValue(0, chunk_count++, Value((string) test));
+		output.SetValue(0, chunk_count++, Value(val));
 
 		output.SetCardinality(chunk_count);
+
+		free(buf);
+
+		data.finished = true;
 	}
 
 	static unique_ptr<FunctionData> NvmefsHelloWorldBind(ClientContext &ctx, TableFunctionBindInput &input, vector<LogicalType> &return_types, vector<string> &names)

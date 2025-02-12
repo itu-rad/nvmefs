@@ -38,10 +38,12 @@ namespace duckdb
 
 	void NvmeFileHandle::Read(void *buffer, idx_t nr_bytes, idx_t location)
 	{
+		file_system.Read(*this, buffer, nr_bytes, location);
 	}
 
 	void NvmeFileHandle::Write(void *buffer, idx_t nr_bytes, idx_t location)
 	{
+		file_system.Write(*this, buffer, nr_bytes, location);
 	}
 
 	unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareWriteCommand()
@@ -90,7 +92,7 @@ namespace duckdb
 
 	unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener)
 	{
-		const string device_path = "/dev/ng0n1"; // TODO: Temporary device path. Should come from settings
+		const string device_path = "/dev/nvme1n1"; // TODO: Temporary device path. Should come from settings
 
 		// TODO: Read settings from FileOpener if pressent. Else use defaults...
 
@@ -101,6 +103,7 @@ namespace duckdb
 		// If device is not opened then we should fail... for now return null
 		if (!device)
 		{
+			xnvme_cli_perr("xnvme_dev_open()", errno);
 			return nullptr;
 		}
 
@@ -137,9 +140,9 @@ namespace duckdb
 	{
 		unique_ptr<NvmeCmdContext> nvme_ctx = handle.Cast<NvmeFileHandle>().PrepareReadCommand();
 
-		uint64_t number_of_lbas = nr_bytes / nvme_ctx->lba_size;
+		uint64_t number_of_lbas = 1; //nr_bytes / nvme_ctx->lba_size;
 
-		int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, number_of_lbas, buffer, nullptr);
+		int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, number_of_lbas, buffer, nullptr);
 		if (err)
 		{
 			// TODO: Handle error
@@ -151,7 +154,7 @@ namespace duckdb
 	{
 		unique_ptr<NvmeCmdContext> nvme_ctx = handle.Cast<NvmeFileHandle>().PrepareReadCommand();
 
-		uint64_t number_of_lbas = nr_bytes / nvme_ctx->lba_size;
+		uint64_t number_of_lbas = 1; //nr_bytes / nvme_ctx->lba_size;
 
 		int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, number_of_lbas, buffer, nullptr);
 		if (err)

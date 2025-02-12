@@ -14,7 +14,10 @@ set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 project(${TARGET_NAME})
 include_directories(src/include)
 
-set(EXTENSION_SOURCES src/nvmefs_extension.cpp)
+set(EXTENSION_SOURCES 
+  src/nvmefs_extension.cpp
+  src/nvmefs.cpp
+  src/nvmefs_secret.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
@@ -22,6 +25,11 @@ build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 # Link OpenSSL in both the static library as the loadable extension
 target_link_libraries(${EXTENSION_NAME} OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(${LOADABLE_EXTENSION_NAME} OpenSSL::SSL OpenSSL::Crypto)
+
+# Link xNVMe
+find_library(XNVME_LIB xnvme)
+target_link_libraries(${EXTENSION_NAME} ${XNVME_LIB})
+target_link_libraries(${LOADABLE_EXTENSION_NAME} ${XNVME_LIB})
 
 install(
   TARGETS ${EXTENSION_NAME}

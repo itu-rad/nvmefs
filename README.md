@@ -130,3 +130,23 @@ Your final `.vscode/settings.json` should look like this:
 ```
 
 This configuration ensures proper integration with the CMake extension in VS Code, streamlining the development workflow.
+
+## Configuration
+
+To fully utilize the extension you need to specify your configuration, which mainly consist of device information. Follow the guide below.
+
+1. Open Duckdb
+
+2. Create a new secret called `nvmfs`
+
+```
+CREATE PERSISTENT SECRET nvmefs (
+  TYPE NVMEFS,
+  nvme_device_path <path_to_nvme_device>,
+  fdp_plhdls       <amount_of_placement_handles_on_device>
+)
+```
+
+3. Restart Duckdb
+
+4. Your configuration is now saved

@@ -151,11 +151,13 @@ namespace duckdb
 
 	int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes)
 	{
+		throw IOException("Not implemented");
 		return 0;
 	}
 
 	int64_t NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes)
 	{
+		throw IOException("Not implemented");
 		return 0;
 	}
 

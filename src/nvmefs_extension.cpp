@@ -45,22 +45,32 @@ namespace duckdb
 			return;
 		}
 
-		vector<std::string> filesystems = context.db->config.file_system->ListSubSystems();
-		idx_t chunk_count = 0;
+		DatabaseInstance &db = DatabaseInstance::GetDatabase(context);
 
-		for (auto fs : filesystems){
-			output.SetValue(0, chunk_count, Value(fs));
-			chunk_count++;
-		}
-		output.SetValue(0, chunk_count++, Value(context.db->config.file_system->GetName()));
+		FileSystem &fs = db.GetFileSystem();
+
+		FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE | FileOpenFlags::FILE_FLAGS_FILE_CREATE;
+
+		unique_ptr<FileHandle> fh = fs.OpenFile("nvme://hello", flags);
+		NvmeFileHandle &fht = (NvmeFileHandle &) fh;
+		string hello = "Hello World!";
+		void *hel = (void*) hello.data();
+
+		fs.Write(fht, hel, int64_t(hello.size()), idx_t(0));
+
+		void *buf;
+		fs.Read(fht, buf, hello.size(), 0);
+
+		string test = *(static_cast<string*>(buf));
+		uint32_t chunk_count = 0;
+		output.SetValue(0, chunk_count++, Value((string) test));
+
 		output.SetCardinality(chunk_count);
-
-		data.finished = true;
 	}
 
 	static unique_ptr<FunctionData> NvmefsHelloWorldBind(ClientContext &ctx, TableFunctionBindInput &input, vector<LogicalType> &return_types, vector<string> &names)
 	{
-		names.emplace_back("file_systems");
+		names.emplace_back("test");
 		return_types.emplace_back(LogicalType::VARCHAR);
 
 		auto result = make_uniq<NvmeFsHelloFunctionData>();

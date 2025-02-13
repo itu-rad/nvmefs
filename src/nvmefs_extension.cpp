@@ -60,7 +60,7 @@ namespace duckdb
 
 		fh->Write(hel, h_size, loc);
 
-		char *buffer = new char[h_size];
+		char *buffer = new char[h_size + 1];
 
 		fh->Read((void *)buffer, h_size, loc);
 

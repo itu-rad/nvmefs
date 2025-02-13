@@ -9,6 +9,7 @@
 #include "duckdb/main/extension_util.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/main/secret/secret_manager.hpp"
+#include <iostream>
 
 #include "nvmefs.hpp"
 
@@ -63,15 +64,19 @@ namespace duckdb
 
 		fh->Read((void *)buffer, h_size, loc);
 
+		std::cout << "Read from NVMe device: " << buffer << std::endl;
 		string val(buffer, h_size);
+		std::cout << "Convert to string" << std::endl;
 		uint32_t chunk_count = 0;
 		output.SetValue(0, chunk_count++, Value(val));
 
 		output.SetCardinality(chunk_count);
 
 		delete[] buffer;
+		std::cout << "Delete buffer" << std::endl;
 
 		data.finished = true;
+		std::cout << "End" << std::endl;
 	}
 
 	static unique_ptr<FunctionData> NvmefsHelloWorldBind(ClientContext &ctx, TableFunctionBindInput &input, vector<LogicalType> &return_types, vector<string> &names)

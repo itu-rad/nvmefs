@@ -26,7 +26,6 @@ namespace duckdb
 		bool finished = false;
 	};
 
-
 	struct NvmeFsHelloFunctionData : public TableFunctionData
 	{
 		NvmeFsHelloFunctionData()
@@ -53,25 +52,24 @@ namespace duckdb
 
 		unique_ptr<FileHandle> fh = fs.OpenFile("nvme://hello", flags);
 
-
 		string hello = "Hello World from Device!";
-		void *hel = (void*) hello.data();
+		void *hel = (void *)hello.data();
 		int64_t h_size = hello.size();
 		idx_t loc = 0;
 
 		fh->Write(hel, h_size, loc);
 
-		void *buf = (void *) new char[h_size];
+		char *buffer = new char[h_size];
 
-		fh->Read(buf, h_size, loc);
+		fh->Read((void *)buffer, h_size, loc);
 
-		string val(static_cast<char*>(buf), h_size);
+		string val(buffer, h_size);
 		uint32_t chunk_count = 0;
 		output.SetValue(0, chunk_count++, Value(val));
 
 		output.SetCardinality(chunk_count);
 
-		free(buf);
+		delete[] buffer;
 
 		data.finished = true;
 	}
@@ -122,10 +120,11 @@ namespace duckdb
 			return;
 		}
 
-		vector<string> settings {"nvme_device_path", "fdp_plhdls"};
+		vector<string> settings{"nvme_device_path", "fdp_plhdls"};
 		idx_t chunk_count = 0;
 
-		for (string setting : settings){
+		for (string setting : settings)
+		{
 			Value current_value;
 			context.TryGetCurrentSetting(setting, current_value);
 			output.SetValue(0, chunk_count, Value(setting));
@@ -152,7 +151,8 @@ namespace duckdb
 		return std::move(result);
 	}
 
-	static void AddConfig(DatabaseInstance &instance){
+	static void AddConfig(DatabaseInstance &instance)
+	{
 		DBConfig &config = DBConfig::GetConfig(instance);
 
 		auto &fs = instance.GetFileSystem();

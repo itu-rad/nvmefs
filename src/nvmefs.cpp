@@ -152,7 +152,7 @@ namespace duckdb
 
 	void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location)
 	{
-		unique_ptr<NvmeCmdContext> nvme_ctx = handle.Cast<NvmeFileHandle>().PrepareReadCommand();
+		unique_ptr<NvmeCmdContext> nvme_ctx = handle.Cast<NvmeFileHandle>().PrepareWriteCommand();
 
 		uint64_t number_of_lbas = 1; //nr_bytes / nvme_ctx->lba_size;
 

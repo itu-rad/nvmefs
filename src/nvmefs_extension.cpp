@@ -13,8 +13,6 @@
 
 #include "nvmefs.hpp"
 
-// OpenSSL linked through vcpkg
-#include <openssl/opensslv.h>
 
 namespace duckdb
 {
@@ -102,20 +100,6 @@ namespace duckdb
 			});
 	}
 
-	inline void NvmefsOpenSSLVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
-	{
-		auto &name_vector = args.data[0];
-		UnaryExecutor::Execute<string_t, string_t>(
-			name_vector, result, args.size(),
-			[&](string_t name)
-			{
-				return StringVector::AddString(result, "Nvmefs " + name.GetString() +
-														   ", my linked OpenSSL version is " +
-														   OPENSSL_VERSION_TEXT);
-				;
-			});
-	}
-
 	static void ConfigPrint(ClientContext &context, TableFunctionInput &data_p, DataChunk &output)
 	{
 		auto &data = data_p.bind_data->CastNoConst<ConfigPrintFunctionData>();
@@ -186,11 +170,6 @@ namespace duckdb
 		// Register a scalar function
 		auto nvmefs_scalar_function = ScalarFunction("nvmefs", {LogicalType::VARCHAR}, LogicalType::VARCHAR, NvmefsScalarFun);
 		ExtensionUtil::RegisterFunction(instance, nvmefs_scalar_function);
-
-		// Register another scalar function
-		auto nvmefs_openssl_version_scalar_function = ScalarFunction("nvmefs_openssl_version", {LogicalType::VARCHAR},
-																	 LogicalType::VARCHAR, NvmefsOpenSSLVersionScalarFun);
-		ExtensionUtil::RegisterFunction(instance, nvmefs_openssl_version_scalar_function);
 
 		TableFunction nvmefs_hello_world_function("nvmefs_hello", {}, NvmefsHelloWorld, NvmefsHelloWorldBind);
 		ExtensionUtil::RegisterFunction(instance, nvmefs_hello_world_function);

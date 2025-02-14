@@ -5,9 +5,7 @@
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
-#include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/extension_util.hpp"
-#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/main/secret/secret_manager.hpp"
 #include <iostream>
 
@@ -88,18 +86,6 @@ namespace duckdb
 		return std::move(result);
 	}
 
-	inline void NvmefsScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
-	{
-		auto &name_vector = args.data[0];
-		UnaryExecutor::Execute<string_t, string_t>(
-			name_vector, result, args.size(),
-			[&](string_t name)
-			{
-				return StringVector::AddString(result, "Nvmefs " + name.GetString() + " 🐥");
-				;
-			});
-	}
-
 	static void ConfigPrint(ClientContext &context, TableFunctionInput &data_p, DataChunk &output)
 	{
 		auto &data = data_p.bind_data->CastNoConst<ConfigPrintFunctionData>();
@@ -166,10 +152,6 @@ namespace duckdb
 
 		CreateNvmefsSecretFunctions::Register(instance);
 		AddConfig(instance);
-
-		// Register a scalar function
-		auto nvmefs_scalar_function = ScalarFunction("nvmefs", {LogicalType::VARCHAR}, LogicalType::VARCHAR, NvmefsScalarFun);
-		ExtensionUtil::RegisterFunction(instance, nvmefs_scalar_function);
 
 		TableFunction nvmefs_hello_world_function("nvmefs_hello", {}, NvmefsHelloWorld, NvmefsHelloWorldBind);
 		ExtensionUtil::RegisterFunction(instance, nvmefs_hello_world_function);

@@ -9,6 +9,7 @@
 #include "duckdb/main/extension_util.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/main/secret/secret_manager.hpp"
+#include <iostream>
 
 #include "nvmefs.hpp"
 
@@ -25,7 +26,6 @@ namespace duckdb
 
 		bool finished = false;
 	};
-
 
 	struct NvmeFsHelloFunctionData : public TableFunctionData
 	{
@@ -45,22 +45,43 @@ namespace duckdb
 			return;
 		}
 
-		vector<std::string> filesystems = context.db->config.file_system->ListSubSystems();
-		idx_t chunk_count = 0;
+		DatabaseInstance &db = DatabaseInstance::GetDatabase(context);
 
-		for (auto fs : filesystems){
-			output.SetValue(0, chunk_count, Value(fs));
-			chunk_count++;
-		}
-		output.SetValue(0, chunk_count++, Value(context.db->config.file_system->GetName()));
+		FileSystem &fs = db.GetFileSystem();
+
+		FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE | FileOpenFlags::FILE_FLAGS_FILE_CREATE;
+
+		unique_ptr<FileHandle> fh = fs.OpenFile("nvme://hello", flags);
+
+		string hello = "Hello World from Device!";
+		void *hel = (void *)hello.data();
+		int64_t h_size = hello.size();
+		idx_t loc = 0;
+
+		fh->Write(hel, h_size, loc);
+
+		char *buffer = new char[h_size + 1];
+
+		fh->Read((void *)buffer, h_size, loc);
+
+		std::cout << "Read from NVMe device: " << buffer << std::endl;
+		string val(buffer, h_size);
+		std::cout << "Convert to string" << std::endl;
+		uint32_t chunk_count = 0;
+		output.SetValue(0, chunk_count++, Value(val));
+
 		output.SetCardinality(chunk_count);
 
+		delete[] buffer;
+		std::cout << "Delete buffer" << std::endl;
+
 		data.finished = true;
+		std::cout << "End" << std::endl;
 	}
 
 	static unique_ptr<FunctionData> NvmefsHelloWorldBind(ClientContext &ctx, TableFunctionBindInput &input, vector<LogicalType> &return_types, vector<string> &names)
 	{
-		names.emplace_back("file_systems");
+		names.emplace_back("test");
 		return_types.emplace_back(LogicalType::VARCHAR);
 
 		auto result = make_uniq<NvmeFsHelloFunctionData>();
@@ -104,10 +125,11 @@ namespace duckdb
 			return;
 		}
 
-		vector<string> settings {"nvme_device_path", "fdp_plhdls"};
+		vector<string> settings{"nvme_device_path", "fdp_plhdls"};
 		idx_t chunk_count = 0;
 
-		for (string setting : settings){
+		for (string setting : settings)
+		{
 			Value current_value;
 			context.TryGetCurrentSetting(setting, current_value);
 			output.SetValue(0, chunk_count, Value(setting));
@@ -134,7 +156,8 @@ namespace duckdb
 		return std::move(result);
 	}
 
-	static void AddConfig(DatabaseInstance &instance){
+	static void AddConfig(DatabaseInstance &instance)
+	{
 		DBConfig &config = DBConfig::GetConfig(instance);
 
 		auto &fs = instance.GetFileSystem();

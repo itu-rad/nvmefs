@@ -159,6 +159,7 @@ namespace duckdb
 	static void AddConfig(DatabaseInstance &instance)
 	{
 		DBConfig &config = DBConfig::GetConfig(instance);
+		config.options.temporary_directory = "nvme:///tmp";
 
 		auto &fs = instance.GetFileSystem();
 		KeyValueSecretReader secret_reader(instance, "nvmefs", "nvmefs://");

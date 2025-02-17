@@ -137,6 +137,11 @@ namespace duckdb
 			chunk_count++;
 		}
 
+		// Output the temporary directory
+		output.SetValue(0, chunk_count, Value("temporary_directory"));
+		output.SetValue(1, chunk_count, Value(context.db->config.options.temporary_directory));
+		chunk_count++;
+
 		output.SetCardinality(chunk_count);
 
 		data.finished = true;
@@ -160,6 +165,8 @@ namespace duckdb
 	{
 		DBConfig &config = DBConfig::GetConfig(instance);
 		config.options.temporary_directory = "nvme:///tmp";
+
+		std::cout << config.options.temporary_directory << std::endl;
 
 		auto &fs = instance.GetFileSystem();
 		KeyValueSecretReader secret_reader(instance, "nvmefs", "nvmefs://");

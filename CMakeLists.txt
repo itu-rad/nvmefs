@@ -13,7 +13,7 @@ set(EXTENSION_SOURCES
   src/nvmefs_extension.cpp
   src/nvmefs.cpp
   src/nvmefs_secret.cpp
-  src/nvmefs_metadata.cpp)
+  src/nvmefs_proxy.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})

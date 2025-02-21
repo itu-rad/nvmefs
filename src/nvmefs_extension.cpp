@@ -2,7 +2,8 @@
 
 #include "nvmefs_extension.hpp"
 #include "nvmefs_secret.hpp"
-#include "nvmefs.hpp"
+#include "nvmefs_proxy.hpp"
+
 
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
@@ -145,7 +146,7 @@ namespace duckdb
 		// Register NvmeFileSystem
 		auto &fs = instance.GetFileSystem();
 
-		fs.RegisterSubSystem(make_uniq<NvmeFileSystem>());
+		fs.RegisterSubSystem(make_uniq<NvmeFileSystemProxy>());
 
 		CreateNvmefsSecretFunctions::Register(instance);
 		AddConfig(instance);

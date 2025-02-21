@@ -3,8 +3,9 @@
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/map.hpp"
 #include <libxnvme.h>
+#include "nvmefs_proxy.hpp"
 
-#define NVMEFS_PATH_PREFIX "nvme://"
+#define NVMEFS_PATH_PREFIX "nvmefs://"
 #define FDP_PLID_COUNT 8
 
 namespace duckdb
@@ -38,10 +39,11 @@ namespace duckdb
 		uint32_t placement_identifier;
 	};
 
+	class NvmeFileSystemProxy;
 	class NvmeFileSystem : public FileSystem
 	{
 	public:
-		NvmeFileSystem();
+		NvmeFileSystem(NvmeFileSystemProxy &proxy_ref);
 		unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener = nullptr) override;
 		void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 		void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
@@ -60,6 +62,7 @@ namespace duckdb
 	private:
 		map<string, uint8_t> allocated_placement_identifiers;
 		vector<string> allocated_paths;
+		NvmeFileSystemProxy &proxy_filesystem;
 	};
 
 }

@@ -84,7 +84,7 @@ namespace duckdb
 	 * NvmeFileSystem
 	 ****************************/
 
-	NvmeFileSystem::NvmeFileSystem()
+	NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref) : proxy_filesystem(proxy_ref)
 	{
 		allocated_paths.push_back("xnvme:///tmp");
 		allocated_placement_identifiers["xnvme:///tmp"] = 1;
@@ -110,7 +110,7 @@ namespace duckdb
 		// Get and add placement identifier for path
 		uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
 
-		unique_ptr<NvmeFileHandle> file_handler = make_uniq<NvmeFileHandle>(*this, path, placement_identifier_index, device);
+		unique_ptr<NvmeFileHandle> file_handler = make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device);
 
 		return std::move(file_handler);
 	}

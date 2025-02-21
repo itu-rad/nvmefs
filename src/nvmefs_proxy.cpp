@@ -8,6 +8,11 @@ namespace duckdb {
 
 	NvmeFileSystemProxy::NvmeFileSystemProxy() : fs(make_uniq<NvmeFileSystem>(*this)) {
 		metadata = LoadMetadata();
+
+		// print for debug
+		std::cout << "this is metadata db - start: " << metadata.database.start << " end: " << metadata.database.end << " loc: " << metadata.database.location << std::endl;
+		std::cout << "this is metadata wal - start: " << metadata.write_ahead_log.start << " end: " << metadata.write_ahead_log.end << " loc: " << metadata.write_ahead_log.location << std::endl;
+		std::cout << "this is metadata temp - start: " << metadata.temporary.start << " end: " << metadata.temporary.end << " loc: " << metadata.temporary.location << std::endl;
 	}
 
 	void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
@@ -46,12 +51,10 @@ namespace duckdb {
 			return InitializeMetadata();
 		}
 
-		for (auto b : buf) {
-			std::cout << b << " ";
-		}
-		std::cout << std::endl;
+		GlobalMetadata global;
+		memcpy(&global, (buf.data() + sizeof(MAGIC_BYTES)), sizeof(GlobalMetadata));
 
-		memcpy(&metadata, (buf.data() + sizeof(MAGIC_BYTES)), sizeof(GlobalMetadata));
+		return global;
 	}
 
 	void NvmeFileSystemProxy::WriteMetadata() {

@@ -20,6 +20,7 @@ namespace duckdb
 
 	class NvmeFileHandle : public FileHandle
 	{
+	friend class NvmeFileSystem;
 	public:
 		NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device);
 		~NvmeFileHandle() override;

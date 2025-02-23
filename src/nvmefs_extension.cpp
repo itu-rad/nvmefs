@@ -2,19 +2,17 @@
 
 #include "nvmefs_extension.hpp"
 #include "nvmefs_secret.hpp"
+#include "nvmefs_proxy.hpp"
+
+
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
-#include "duckdb/function/scalar_function.hpp"
 #include "duckdb/main/extension_util.hpp"
-#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/main/secret/secret_manager.hpp"
-#include <iostream>
 
-#include "nvmefs.hpp"
 
-// OpenSSL linked through vcpkg
-#include <openssl/opensslv.h>
+
 
 namespace duckdb
 {
@@ -64,19 +62,15 @@ namespace duckdb
 
 		fh->Read((void *)buffer, h_size, loc);
 
-		std::cout << "Read from NVMe device: " << buffer << std::endl;
 		string val(buffer, h_size);
-		std::cout << "Convert to string" << std::endl;
 		uint32_t chunk_count = 0;
 		output.SetValue(0, chunk_count++, Value(val));
 
 		output.SetCardinality(chunk_count);
 
 		delete[] buffer;
-		std::cout << "Delete buffer" << std::endl;
 
 		data.finished = true;
-		std::cout << "End" << std::endl;
 	}
 
 	static unique_ptr<FunctionData> NvmefsHelloWorldBind(ClientContext &ctx, TableFunctionBindInput &input, vector<LogicalType> &return_types, vector<string> &names)
@@ -88,32 +82,6 @@ namespace duckdb
 		result->finished = false;
 
 		return std::move(result);
-	}
-
-	inline void NvmefsScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
-	{
-		auto &name_vector = args.data[0];
-		UnaryExecutor::Execute<string_t, string_t>(
-			name_vector, result, args.size(),
-			[&](string_t name)
-			{
-				return StringVector::AddString(result, "Nvmefs " + name.GetString() + " 🐥");
-				;
-			});
-	}
-
-	inline void NvmefsOpenSSLVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result)
-	{
-		auto &name_vector = args.data[0];
-		UnaryExecutor::Execute<string_t, string_t>(
-			name_vector, result, args.size(),
-			[&](string_t name)
-			{
-				return StringVector::AddString(result, "Nvmefs " + name.GetString() +
-														   ", my linked OpenSSL version is " +
-														   OPENSSL_VERSION_TEXT);
-				;
-			});
 	}
 
 	static void ConfigPrint(ClientContext &context, TableFunctionInput &data_p, DataChunk &output)
@@ -178,19 +146,10 @@ namespace duckdb
 		// Register NvmeFileSystem
 		auto &fs = instance.GetFileSystem();
 
-		fs.RegisterSubSystem(make_uniq<NvmeFileSystem>());
+		fs.RegisterSubSystem(make_uniq<NvmeFileSystemProxy>());
 
 		CreateNvmefsSecretFunctions::Register(instance);
 		AddConfig(instance);
-
-		// Register a scalar function
-		auto nvmefs_scalar_function = ScalarFunction("nvmefs", {LogicalType::VARCHAR}, LogicalType::VARCHAR, NvmefsScalarFun);
-		ExtensionUtil::RegisterFunction(instance, nvmefs_scalar_function);
-
-		// Register another scalar function
-		auto nvmefs_openssl_version_scalar_function = ScalarFunction("nvmefs_openssl_version", {LogicalType::VARCHAR},
-																	 LogicalType::VARCHAR, NvmefsOpenSSLVersionScalarFun);
-		ExtensionUtil::RegisterFunction(instance, nvmefs_openssl_version_scalar_function);
 
 		TableFunction nvmefs_hello_world_function("nvmefs_hello", {}, NvmefsHelloWorld, NvmefsHelloWorldBind);
 		ExtensionUtil::RegisterFunction(instance, nvmefs_hello_world_function);

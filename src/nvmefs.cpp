@@ -34,7 +34,9 @@ namespace duckdb
 		xnvme_buf_free(device, ruhs);
 	}
 
-	NvmeFileHandle::~NvmeFileHandle() = default;
+	NvmeFileHandle::~NvmeFileHandle() {
+		xnvme_dev_close(device);
+	};
 
 	void NvmeFileHandle::Read(void *buffer, idx_t nr_bytes, idx_t location)
 	{
@@ -84,7 +86,7 @@ namespace duckdb
 	 * NvmeFileSystem
 	 ****************************/
 
-	NvmeFileSystem::NvmeFileSystem()
+	NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref) : proxy_filesystem(proxy_ref)
 	{
 		allocated_paths.push_back("xnvme:///tmp");
 		allocated_placement_identifiers["xnvme:///tmp"] = 1;
@@ -110,7 +112,7 @@ namespace duckdb
 		// Get and add placement identifier for path
 		uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
 
-		unique_ptr<NvmeFileHandle> file_handler = make_uniq<NvmeFileHandle>(*this, path, placement_identifier_index, device);
+		unique_ptr<NvmeFileHandle> file_handler = make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device);
 
 		return std::move(file_handler);
 	}
@@ -138,8 +140,10 @@ namespace duckdb
 
 	void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location)
 	{
-		unique_ptr<NvmeCmdContext> nvme_ctx = handle.Cast<NvmeFileHandle>().PrepareReadCommand();
+		NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
+		unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand();
 
+		void *buf = xnvme_buf_alloc(nvme_handle.device, nr_bytes);
 		uint64_t number_of_lbas = 1; //nr_bytes / nvme_ctx->lba_size;
 
 		int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, number_of_lbas, buffer, nullptr);
@@ -148,13 +152,20 @@ namespace duckdb
 			// TODO: Handle error
 			throw IOException("Error reading from NVMe device");
 		}
+
+		memcpy(buffer, buf, nr_bytes);
+		xnvme_buf_free(nvme_handle.device, buf);
 	}
 
 	void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location)
 	{
-		unique_ptr<NvmeCmdContext> nvme_ctx = handle.Cast<NvmeFileHandle>().PrepareReadCommand();
+		NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
+		unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand();
 
+		void *buf = xnvme_buf_alloc(nvme_handle.device, nr_bytes);
 		uint64_t number_of_lbas = 1; //nr_bytes / nvme_ctx->lba_size;
+
+		memcpy(buf, buffer, nr_bytes);
 
 		int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, number_of_lbas, buffer, nullptr);
 		if (err)
@@ -162,6 +173,8 @@ namespace duckdb
 			// TODO: Handle error
 			throw IOException("Error writing to NVMe device");
 		}
+
+		xnvme_buf_free(nvme_handle.device, buf);
 	}
 
 	int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes)

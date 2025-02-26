@@ -4,33 +4,26 @@
 
 namespace duckdb {
 
-	struct Metadata {
-		uint64_t location;
-	};
+struct Metadata {
+	uint64_t location;
+};
 
-	struct GlobalMetadata : Metadata {
-		uint64_t catalog;
-		uint64_t temporary;
-	};
+struct GlobalMetadata : Metadata {
+	uint64_t catalog;
+	uint64_t temporary;
+};
 
-	struct CatalogMetadata : Metadata {
+struct CatalogMetadata : Metadata {};
 
-	};
+struct TemporaryMetadata : Metadata {};
 
-	struct TemporaryMetadata : Metadata {
+class NvmeMetadataManager {
+public:
+	NvmeMetadataManager();
+	~NvmeMetadataManager() = default;
 
-	};
-
-
-
-	class NvmeMetadataManager {
-		public:
-			NvmeMetadataManager();
-			~NvmeMetadataManager() = default;
-
-			Metadata ReadMetadata();
-			int64_t WriteMetadata();
-
-	};
+	Metadata ReadMetadata();
+	int64_t WriteMetadata();
+};
 
 } // namespace duckdb

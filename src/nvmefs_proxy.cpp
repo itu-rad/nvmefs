@@ -53,7 +53,7 @@ GlobalMetadata NvmeFileSystemProxy::LoadMetadata() {
 
 	unique_ptr<FileHandle> fh = fs->OpenFile(NVME_GLOBAL_METADATA_PATH, flags);
 
-	fs->Read(*fh, buf.data(), bytes_to_read, metadata_location);
+	fs->Read(*fh, buf.data(), bytes_to_read, NVMEFS_METADATA_LOCATION);
 
 	// Check magic bytes
 	if (memcmp(buf.data(), MAGIC_BYTES, sizeof(MAGIC_BYTES)) != 0) {

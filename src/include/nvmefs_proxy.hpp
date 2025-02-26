@@ -9,6 +9,7 @@
 
 namespace duckdb {
 
+#define NVMEFS_METADATA_LOCATION 0
 // TODO: Use NVME_PREFIX_PATH instead of hardcode 'nvmefs://'
 const std::string NVME_GLOBAL_METADATA_PATH = "nvmefs://.global_metadata";
 
@@ -54,6 +55,7 @@ private:
 	uint64_t GetLBA(MetadataType type, std::string filename = "");
 
 private:
+	Allocator &allocator;
 	GlobalMetadata metadata;
 	unique_ptr<NvmeFileSystem> fs;
 	map<std::string, uint64_t> file_to_lba;

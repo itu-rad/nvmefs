@@ -114,7 +114,7 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 	// Get and add placement identifier for path
 	uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
 	uint8_t plid_count;
-	secret_reader.TryGetSecretKeyOrSetting("fdp_plhdls", "fdp_plhdls", plid_count
+	secret_reader.TryGetSecretKeyOrSetting("fdp_plhdls", "fdp_plhdls", plid_count);
 
 	unique_ptr<NvmeFileHandle> file_handler =
 	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count);

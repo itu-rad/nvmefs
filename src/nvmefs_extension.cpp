@@ -7,6 +7,7 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/main/extension_util.hpp"
 #include "duckdb/main/secret/secret_manager.hpp"
+#include "duckdb/main/settings.hpp"
 #include "nvmefs_proxy.hpp"
 #include "nvmefs_secret.hpp"
 
@@ -56,8 +57,13 @@ static unique_ptr<FunctionData> ConfigPrintBind(ClientContext &ctx, TableFunctio
 }
 
 static void AddConfig(DatabaseInstance &instance) {
+
 	DBConfig &config = DBConfig::GetConfig(instance);
 
+	// Change global settings
+	TempDirectorySetting::SetGlobal(&instance, config, Value("nvmefs:///tmp"));
+
+	// Add extension options
 	auto &fs = instance.GetFileSystem();
 	KeyValueSecretReader secret_reader(instance, "nvmefs", "nvmefs://");
 

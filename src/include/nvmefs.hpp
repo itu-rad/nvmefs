@@ -17,6 +17,8 @@ struct NvmeCmdContext {
 	uint64_t number_of_lbas;
 };
 
+typedef void *nvme_buf_ptr;
+
 class NvmeFileHandle : public FileHandle {
 	friend class NvmeFileSystem;
 
@@ -29,8 +31,19 @@ public:
 	int64_t Read(void *buffer, idx_t nr_bytes);
 	int64_t Write(void *buffer, idx_t nr_bytes);
 
-	unique_ptr<NvmeCmdContext> PrepareWriteCommand(uint64_t nr_bytes);
-	unique_ptr<NvmeCmdContext> PrepareReadCommand(uint64_t nr_bytes);
+protected:
+	unique_ptr<NvmeCmdContext> PrepareWriteCommand(int64_t nr_bytes);
+	unique_ptr<NvmeCmdContext> PrepareReadCommand(int64_t nr_bytes);
+
+	/// @brief Allocates a device specific buffer. After the need for the created buffer is gone, it should be freed
+	/// using FreeDeviceBuffer
+	/// @param nr_bytes The number of bytes to allocate (The actual allocation might be larger)
+	/// @return A pointer to the allocated buffer
+	nvme_buf_ptr AllocateDeviceBuffer(int64_t nr_bytes);
+
+	/// @brief Frees a device specific buffer
+	/// @param buffer The buffer to free
+	void FreeDeviceBuffer(nvme_buf_ptr buffer);
 
 	void Close() {
 	}

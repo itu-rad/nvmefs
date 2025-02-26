@@ -83,8 +83,8 @@ unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareReadCommand() {
  ****************************/
 
 NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref) : proxy_filesystem(proxy_ref) {
-	allocated_paths.push_back("xnvme:///tmp");
-	allocated_placement_identifiers["xnvme:///tmp"] = 1;
+	allocated_paths.push_back("nvmefs:///tmp");
+	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 }
 
 unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags,

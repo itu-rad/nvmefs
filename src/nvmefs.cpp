@@ -54,6 +54,11 @@ int64_t CalculateRequiredLBACount(uint32_t lba_size, uint64_t nr_bytes) {
 
 	return (nr_bytes + lba_size - 1) / lba_size; // Round up to nearest LBA
 }
+
+unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareWriteCommand(uint64_t nr_bytes) {
+
+	D_ASSERT(nr_bytes > 0);
+
 	xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 
@@ -64,12 +69,15 @@ int64_t CalculateRequiredLBACount(uint32_t lba_size, uint64_t nr_bytes) {
 	unique_ptr<NvmeCmdContext> nvme_ctx = make_uniq<NvmeCmdContext>();
 	nvme_ctx->ctx = ctx;
 	nvme_ctx->namespace_id = nsid;
-	nvme_ctx->lba_size = geo->lba_nbytes;
+	nvme_ctx->number_of_lbas = CalculateRequiredLBACount(geo->lba_nbytes, nr_bytes);
 
 	return std::move(nvme_ctx);
 }
 
-unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareReadCommand() {
+unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareReadCommand(uint64_t nr_bytes) {
+
+	D_ASSERT(nr_bytes > 0);
+
 	xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 
@@ -80,7 +88,7 @@ unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareReadCommand() {
 	unique_ptr<NvmeCmdContext> nvme_ctx = make_uniq<NvmeCmdContext>();
 	nvme_ctx->ctx = ctx;
 	nvme_ctx->namespace_id = nsid;
-	nvme_ctx->lba_size = geo->lba_nbytes;
+	nvme_ctx->number_of_lbas = CalculateRequiredLBACount(geo->lba_nbytes, nr_bytes);
 
 	return std::move(nvme_ctx);
 }
@@ -139,12 +147,12 @@ uint8_t NvmeFileSystem::GetPlacementIdentifierIndexOrDefault(const string &path)
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
-	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand();
+	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand(nr_bytes);
 
 	void *buf = xnvme_buf_alloc(nvme_handle.device, nr_bytes);
-	uint64_t number_of_lbas = 1; // nr_bytes / nvme_ctx->lba_size;
 
-	int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, number_of_lbas, buffer, nullptr);
+	int err =
+	    xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas, buffer, nullptr);
 	if (err) {
 		// TODO: Handle error
 		throw IOException("Error reading from NVMe device");

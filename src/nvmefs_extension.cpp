@@ -18,61 +18,6 @@ struct ConfigPrintFunctionData : public TableFunctionData {
 	bool finished = false;
 };
 
-struct NvmeFsHelloFunctionData : public TableFunctionData {
-	NvmeFsHelloFunctionData() {
-	}
-
-	bool finished = false;
-};
-
-static void NvmefsHelloWorld(ClientContext &context, TableFunctionInput &data_p, DataChunk &output) {
-	auto &data = data_p.bind_data->CastNoConst<NvmeFsHelloFunctionData>();
-
-	if (data.finished) {
-		return;
-	}
-
-	DatabaseInstance &db = DatabaseInstance::GetDatabase(context);
-
-	FileSystem &fs = db.GetFileSystem();
-
-	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE | FileOpenFlags::FILE_FLAGS_FILE_CREATE;
-
-	unique_ptr<FileHandle> fh = fs.OpenFile("nvme://hello", flags);
-
-	string hello = "Hello World from Device!";
-	void *hel = (void *)hello.data();
-	int64_t h_size = hello.size();
-	idx_t loc = 0;
-
-	fh->Write(hel, h_size, loc);
-
-	char *buffer = new char[h_size + 1];
-
-	fh->Read((void *)buffer, h_size, loc);
-
-	string val(buffer, h_size);
-	uint32_t chunk_count = 0;
-	output.SetValue(0, chunk_count++, Value(val));
-
-	output.SetCardinality(chunk_count);
-
-	delete[] buffer;
-
-	data.finished = true;
-}
-
-static unique_ptr<FunctionData> NvmefsHelloWorldBind(ClientContext &ctx, TableFunctionBindInput &input,
-                                                     vector<LogicalType> &return_types, vector<string> &names) {
-	names.emplace_back("test");
-	return_types.emplace_back(LogicalType::VARCHAR);
-
-	auto result = make_uniq<NvmeFsHelloFunctionData>();
-	result->finished = false;
-
-	return std::move(result);
-}
-
 static void ConfigPrint(ClientContext &context, TableFunctionInput &data_p, DataChunk &output) {
 	auto &data = data_p.bind_data->CastNoConst<ConfigPrintFunctionData>();
 
@@ -135,9 +80,6 @@ static void LoadInternal(DatabaseInstance &instance) {
 
 	CreateNvmefsSecretFunctions::Register(instance);
 	AddConfig(instance);
-
-	TableFunction nvmefs_hello_world_function("nvmefs_hello", {}, NvmefsHelloWorld, NvmefsHelloWorldBind);
-	ExtensionUtil::RegisterFunction(instance, nvmefs_hello_world_function);
 
 	TableFunction config_print_function("print_config", {}, ConfigPrint, ConfigPrintBind);
 	ExtensionUtil::RegisterFunction(instance, config_print_function);

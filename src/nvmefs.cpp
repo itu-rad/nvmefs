@@ -46,7 +46,14 @@ void NvmeFileHandle::Write(void *buffer, idx_t nr_bytes, idx_t location) {
 	file_system.Write(*this, buffer, nr_bytes, location);
 }
 
-unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareWriteCommand() {
+/// @brief Calculates the amount of LBAs required to store the given number of bytes
+/// @param lba_size The size of a single LBA
+/// @param nr_bytes The number of bytes to store
+/// @return The number of LBAs required to store the given number of bytes
+int64_t CalculateRequiredLBACount(uint32_t lba_size, uint64_t nr_bytes) {
+
+	return (nr_bytes + lba_size - 1) / lba_size; // Round up to nearest LBA
+}
 	xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 

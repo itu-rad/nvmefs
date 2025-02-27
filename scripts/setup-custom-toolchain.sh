@@ -1,11 +1,22 @@
 #!/bin/bash
 
-# This is an example script that can be used to install additional toolchain dependencies. Feel free to remove this script
-# if no additional toolchains are required
-
-# To enable this script, set the `custom_toolchain_script` option to true when calling the reusable workflow
-# `.github/workflows/_extension_distribution.yml` from `https://github.com/duckdb/extension-ci-tools`
+############################################
+########### Setup CI Toolchains ############
+############################################
+# Description:
+#  This script is used to setup the custom toolchain
+#  for the nvmefs extension. This script is called
+#  by the CI/CD pipeline (via "make configure_ci") 
+#  to setup the custom toolchain
+#
+# Assumptions:
+#   It is assumed that this script is being executed from
+#   the root of the nvmefs project directory. 
+#   Additionally, the files in the submodule has to be
+#   available and fetched. If not, search for how 
+#   to fetch a git submodules files.
 
 # note that the $DUCKDB_PLATFORM environment variable can be used to discern between the platforms
 echo "This is the sample custom toolchain script running for architecture '$DUCKDB_PLATFORM' for the nvmefs extension."
 
+bash ./scripts/xnvme/install.sh

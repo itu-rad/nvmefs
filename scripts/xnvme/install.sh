@@ -15,6 +15,7 @@
 #   available and fetched. If not, search for how 
 #   to fetch a git submodules files.
 
+CURRENT_DIR=$(pwd)
 XNVME_DEV_ROOT="./third-party/xnvme"
 
 # Change working directory
@@ -28,3 +29,6 @@ meson compile -C builddir
 
 # install xNVMe
 meson install -C builddir
+
+# Go back to our current directory
+cd $CURRENT_DIR

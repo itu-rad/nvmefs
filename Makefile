@@ -11,3 +11,6 @@ run:
 	@./build/release/duckdb
 
 clean-run: clean release run
+
+configure_ci:
+	@bash "./scripts/setup-custom-toolchain.sh"

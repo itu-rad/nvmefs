@@ -47,7 +47,7 @@ bool NvmeFileSystemProxy::CanHandleFile(const string &fpath) {
 	return fs->CanHandleFile(fpath);
 }
 
-GlobalMetadata* NvmeFileSystemProxy::LoadMetadata(optional_ptr<FileOpener> opener) {
+unique_ptr<GlobalMetadata> NvmeFileSystemProxy::LoadMetadata(optional_ptr<FileOpener> opener) {
 
 	idx_t bytes_to_read = sizeof(MAGIC_BYTES) + sizeof(GlobalMetadata);
 	data_ptr_t buffer = allocator.AllocateData(bytes_to_read);
@@ -60,15 +60,15 @@ GlobalMetadata* NvmeFileSystemProxy::LoadMetadata(optional_ptr<FileOpener> opene
 	// Check magic bytes
 	if (memcmp(buffer, MAGIC_BYTES, sizeof(MAGIC_BYTES)) != 0) {
 		allocator.FreeData(buffer, bytes_to_read);
-		return InitializeMetadata();
+		return InitializeMetadata(opener);
 	}
 
-	GlobalMetadata global;
+	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(new GlobalMetadata);
 	memcpy(&global, (buffer + sizeof(MAGIC_BYTES)), sizeof(GlobalMetadata));
 
 	allocator.FreeData(buffer, bytes_to_read);
 
-	return &global;
+	return std::move(global);
 }
 
 void NvmeFileSystemProxy::WriteMetadata() {
@@ -77,7 +77,7 @@ void NvmeFileSystemProxy::WriteMetadata() {
 uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, std::string filename) {
 }
 
-GlobalMetadata* NvmeFileSystemProxy::InitializeMetadata(optional_ptr<FileOpener> opener) {
+unique_ptr<GlobalMetadata> NvmeFileSystemProxy::InitializeMetadata(optional_ptr<FileOpener> opener) {
 	// Create buffer
 	// insert magic bytes
 	// insert metadata
@@ -97,7 +97,11 @@ GlobalMetadata* NvmeFileSystemProxy::InitializeMetadata(optional_ptr<FileOpener>
 	Metadata meta_wal {.start = 5002, .end = 10002, .location = 5002};
 	Metadata meta_temp {.start = 10003, .end = 15003, .location = 10003};
 
-	GlobalMetadata global {.database = meta_db, .write_ahead_log = meta_wal, .temporary = meta_temp};
+	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(new GlobalMetadata);
+
+	global->database = meta_db;
+	global->temporary = meta_temp;
+	global->write_ahead_log = meta_wal;
 
 	memcpy(buffer, MAGIC_BYTES, sizeof(MAGIC_BYTES));
 	memcpy(buffer + sizeof(MAGIC_BYTES), &global, sizeof(GlobalMetadata));
@@ -109,7 +113,7 @@ GlobalMetadata* NvmeFileSystemProxy::InitializeMetadata(optional_ptr<FileOpener>
 
 	allocator.FreeData(buffer, bytes_to_write);
 
-	return &global;
+	return std::move(global);
 }
 
 } // namespace duckdb

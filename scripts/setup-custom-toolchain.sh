@@ -20,7 +20,7 @@
 echo "This is the sample custom toolchain script running for architecture '$DUCKDB_PLATFORM' for the nvmefs extension."
 
 if [ "${DUCKDB_PLATFORM}" == "linux_amd64_musl" ]; then
-    apt-get install -y ninja-build
+    sudo apt-get install -y ninja-build
 fi
 
 python -m pip install --user meson

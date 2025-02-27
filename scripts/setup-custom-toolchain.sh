@@ -22,4 +22,8 @@ echo "This is the sample custom toolchain script running for architecture '$DUCK
 pip3 install --user meson
 export PATH=$PATH:/Users/runner/Library/Python/3.11/bin
 
+
+meson --version
+ninja --version
+
 bash ./scripts/xnvme/install.sh

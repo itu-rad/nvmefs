@@ -63,7 +63,7 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::LoadMetadata(optional_ptr<FileOp
 		return InitializeMetadata(opener);
 	}
 
-	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(new GlobalMetadata{});
+	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata{});
 	memcpy(&global, (buffer + sizeof(MAGIC_BYTES)), sizeof(GlobalMetadata));
 
 	allocator.FreeData(buffer, bytes_to_read);
@@ -97,7 +97,7 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::InitializeMetadata(optional_ptr<
 	Metadata meta_wal {.start = 5002, .end = 10002, .location = 5002};
 	Metadata meta_temp {.start = 10003, .end = 15003, .location = 10003};
 
-	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(new GlobalMetadata{});
+	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata{});
 
 	global->database = meta_db;
 	global->temporary = meta_temp;

@@ -158,6 +158,11 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+	// fall-back - throw away number of LBA's written
+	WriteInternal(handle, buffer, nr_bytes, location);
+}
+
+uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand();
 
@@ -173,6 +178,7 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 	}
 
 	xnvme_buf_free(nvme_handle.device, buf);
+	return number_of_lbas;
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {

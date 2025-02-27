@@ -28,7 +28,7 @@ void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_byte
 }
 
 void NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	fs->Write(handle, buffer, nr_bytes, location);
+	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, location);
 }
 
 unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpenFlags flags,

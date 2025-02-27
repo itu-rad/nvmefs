@@ -49,14 +49,14 @@ public:
 	}
 
 private:
-	GlobalMetadata LoadMetadata();
-	GlobalMetadata InitializeMetadata();
+	GlobalMetadata* LoadMetadata(optional_ptr<FileOpener> opener);
+	GlobalMetadata* InitializeMetadata(optional_ptr<FileOpener> opener);
 	void WriteMetadata();
 	uint64_t GetLBA(MetadataType type, std::string filename = "");
 
 private:
 	Allocator &allocator;
-	GlobalMetadata metadata;
+	GlobalMetadata *metadata;
 	unique_ptr<NvmeFileSystem> fs;
 	map<std::string, uint64_t> file_to_lba;
 };

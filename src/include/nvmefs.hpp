@@ -21,7 +21,7 @@ class NvmeFileHandle : public FileHandle {
 	friend class NvmeFileSystem;
 
 public:
-	NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device);
+	NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device, FileOpenFlags flags);
 	~NvmeFileHandle() override;
 
 	void Read(void *buffer, idx_t nr_bytes, idx_t location);

@@ -20,5 +20,6 @@
 echo "This is the sample custom toolchain script running for architecture '$DUCKDB_PLATFORM' for the nvmefs extension."
 
 pip3 install --user meson
+export PATH=$PATH:/Users/runner/Library/Python/3.11/bin
 
 bash ./scripts/xnvme/install.sh

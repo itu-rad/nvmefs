@@ -19,4 +19,6 @@
 # note that the $DUCKDB_PLATFORM environment variable can be used to discern between the platforms
 echo "This is the sample custom toolchain script running for architecture '$DUCKDB_PLATFORM' for the nvmefs extension."
 
+pip3 install --user meson
+
 bash ./scripts/xnvme/install.sh

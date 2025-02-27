@@ -19,11 +19,13 @@
 # note that the $DUCKDB_PLATFORM environment variable can be used to discern between the platforms
 echo "This is the sample custom toolchain script running for architecture '$DUCKDB_PLATFORM' for the nvmefs extension."
 
-if [ "${DUCKDB_PLATFORM}" == "linux_amd64_musl" ]; then
+if [ "${DUCKDB_PLATFORM}" == "linux_amd64_musl" ] && [ "${LINUX_CI_IN_DOCKER}" == 0 ]; then
     sudo apt-get install -y ninja-build
+else
+    echo "This is the sample custom toolchain script running for architecture '$DUCKDB_PLATFORM' for the nvmefs extension."
 fi
 
-python -m pip install --user meson
+python -m pip install meson --break-system-packages
 export PATH=$PATH:/Users/runner/Library/Python/3.11/bin
 
 meson --version

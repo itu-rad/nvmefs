@@ -23,7 +23,7 @@ python -m pip install meson --break-system-packages
 
 if [ "${DUCKDB_PLATFORM}" == "linux_amd64_musl" ] && [ "${LINUX_CI_IN_DOCKER}" == 0 ]; then
     sudo apt-get install -y ninja-build
-    sudo export PATH=$PATH:/Users/runner/Library/Python/3.11/bin && bash ./scripts/xnvme/install.sh
+    sudo bash -c "export PATH=$PATH:/Users/runner/Library/Python/3.11/bin && bash ./scripts/xnvme/install.sh"
 else
     export PATH=$PATH:/Users/runner/Library/Python/3.11/bin
     echo "This is the sample custom toolchain script running for architecture '$DUCKDB_PLATFORM' for the nvmefs extension."

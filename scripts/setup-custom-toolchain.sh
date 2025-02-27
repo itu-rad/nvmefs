@@ -29,4 +29,4 @@ export PATH=$PATH:/Users/runner/Library/Python/3.11/bin
 meson --version
 ninja --version
 
-bash ./scripts/xnvme/install.sh
+sudo bash ./scripts/xnvme/install.sh

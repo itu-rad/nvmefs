@@ -20,11 +20,7 @@ void PrintMetadata(Metadata &meta, string name) {
 
 NvmeFileSystemProxy::NvmeFileSystemProxy()
     : fs(make_uniq<NvmeFileSystem>(*this)), allocator(Allocator::DefaultAllocator()) {
-	metadata = LoadMetadata();
 
-	PrintMetadata(metadata.database, "database");
-	PrintMetadata(metadata.write_ahead_log, "write_ahead_log");
-	PrintMetadata(metadata.temporary, "temporary");
 }
 
 void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
@@ -37,6 +33,13 @@ void NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_byt
 
 unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpenFlags flags,
                                                      optional_ptr<FileOpener> opener) {
+	if (!metadata) {
+		metadata = LoadMetadata(opener);
+
+		PrintMetadata(metadata->database, "database");
+		PrintMetadata(metadata->write_ahead_log, "write_ahead_log");
+		PrintMetadata(metadata->temporary, "temporary");
+	}
 	return fs->OpenFile(path, flags, opener);
 }
 
@@ -44,28 +47,28 @@ bool NvmeFileSystemProxy::CanHandleFile(const string &fpath) {
 	return fs->CanHandleFile(fpath);
 }
 
-GlobalMetadata NvmeFileSystemProxy::LoadMetadata() {
+unique_ptr<GlobalMetadata> NvmeFileSystemProxy::LoadMetadata(optional_ptr<FileOpener> opener) {
 
 	idx_t bytes_to_read = sizeof(MAGIC_BYTES) + sizeof(GlobalMetadata);
 	data_ptr_t buffer = allocator.AllocateData(bytes_to_read);
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ;
 
-	unique_ptr<FileHandle> fh = fs->OpenFile(NVME_GLOBAL_METADATA_PATH, flags);
+	unique_ptr<FileHandle> fh = fs->OpenFile(NVME_GLOBAL_METADATA_PATH, flags, opener);
 
 	fs->Read(*fh, buffer, bytes_to_read, NVMEFS_METADATA_LOCATION);
 
 	// Check magic bytes
 	if (memcmp(buffer, MAGIC_BYTES, sizeof(MAGIC_BYTES)) != 0) {
 		allocator.FreeData(buffer, bytes_to_read);
-		return InitializeMetadata();
+		return InitializeMetadata(opener);
 	}
 
-	GlobalMetadata global;
+	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata{});
 	memcpy(&global, (buffer + sizeof(MAGIC_BYTES)), sizeof(GlobalMetadata));
 
 	allocator.FreeData(buffer, bytes_to_read);
 
-	return global;
+	return std::move(global);
 }
 
 void NvmeFileSystemProxy::WriteMetadata() {
@@ -74,7 +77,7 @@ void NvmeFileSystemProxy::WriteMetadata() {
 uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, std::string filename) {
 }
 
-GlobalMetadata NvmeFileSystemProxy::InitializeMetadata() {
+unique_ptr<GlobalMetadata> NvmeFileSystemProxy::InitializeMetadata(optional_ptr<FileOpener> opener) {
 	// Create buffer
 	// insert magic bytes
 	// insert metadata
@@ -94,19 +97,23 @@ GlobalMetadata NvmeFileSystemProxy::InitializeMetadata() {
 	Metadata meta_wal {.start = 5002, .end = 10002, .location = 5002};
 	Metadata meta_temp {.start = 10003, .end = 15003, .location = 10003};
 
-	GlobalMetadata global {.database = meta_db, .write_ahead_log = meta_wal, .temporary = meta_temp};
+	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata{});
+
+	global->database = meta_db;
+	global->temporary = meta_temp;
+	global->write_ahead_log = meta_wal;
 
 	memcpy(buffer, MAGIC_BYTES, sizeof(MAGIC_BYTES));
 	memcpy(buffer + sizeof(MAGIC_BYTES), &global, sizeof(GlobalMetadata));
 
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE | FileOpenFlags::FILE_FLAGS_FILE_CREATE;
 
-	unique_ptr<FileHandle> fh = fs->OpenFile(NVME_GLOBAL_METADATA_PATH, flags);
+	unique_ptr<FileHandle> fh = fs->OpenFile(NVME_GLOBAL_METADATA_PATH, flags, opener);
 	fs->Write(*fh, buffer, bytes_to_write, medata_location);
 
 	allocator.FreeData(buffer, bytes_to_write);
 
-	return global;
+	return std::move(global);
 }
 
 } // namespace duckdb

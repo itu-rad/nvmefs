@@ -7,7 +7,6 @@
 #include <libxnvme.h>
 
 #define NVMEFS_PATH_PREFIX "nvmefs://"
-#define FDP_PLID_COUNT     8
 
 namespace duckdb {
 
@@ -21,7 +20,7 @@ class NvmeFileHandle : public FileHandle {
 	friend class NvmeFileSystem;
 
 public:
-	NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device);
+	NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device, uint8_t plid_count);
 	~NvmeFileHandle() override;
 
 	void Read(void *buffer, idx_t nr_bytes, idx_t location);

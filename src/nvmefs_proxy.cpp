@@ -1,8 +1,10 @@
 #include "nvmefs_proxy.hpp"
 
 #include "duckdb/main/extension_util.hpp"
+#include "duckdb/common/string_util.hpp"
 
 #include <iostream>
+
 
 namespace duckdb {
 
@@ -13,8 +15,20 @@ void PrintMetadata(Metadata &meta, string name) {
 	printf("Metadata for %s\n", name.c_str());
 	std::cout << "start: " << meta.start << " end: " << meta.end << " loc: " << meta.location << std::endl;
 }
+void PrintDebug(string debug){
+	std::cout << debug << std:endl;
+}
+void PrintFullMetadata() {
+	PrintMetadata(metadata->database, "database");
+	PrintMetadata(metadata->write_ahead_log, "write_ahead_log");
+	PrintMetadata(metadata->temporary, "temporary");
+}
 #else
 void PrintMetadata(Metadata &meta, string name) {
+}
+void PrintDebug(string debug) {
+}
+void PrintFullMetadata(){
 }
 #endif
 
@@ -28,7 +42,11 @@ void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_byte
 }
 
 void NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, location);
+	MetadataType type = GetMetadataType(handle.path);
+	uint64_t lba_start_location = GetLBA(type, handle.path, location);
+	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
+	WriteMetadata(lba_start_location, written_lbas, type);
+	PrintFullMetadata();
 }
 
 unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpenFlags flags,
@@ -36,9 +54,7 @@ unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpe
 	if (!metadata) {
 		metadata = LoadMetadata(opener);
 
-		PrintMetadata(metadata->database, "database");
-		PrintMetadata(metadata->write_ahead_log, "write_ahead_log");
-		PrintMetadata(metadata->temporary, "temporary");
+		PrintFullMetadata();
 	}
 	return fs->OpenFile(path, flags, opener);
 }
@@ -71,10 +87,86 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::LoadMetadata(optional_ptr<FileOp
 	return std::move(global);
 }
 
-void NvmeFileSystemProxy::WriteMetadata() {
+void NvmeFileSystemProxy::WriteMetadata(uint64_t location, uint64_t nr_lbas, MetadataType type) {
+	bool write = false;
+	switch (type) {
+		case MetadataType::WAL:
+			if (location >= metadata->write_ahead_log.location){
+				metadata->write_ahead_log.location = location + nr_lbas;
+				write = true;
+			}
+			break;
+		case MetadataType::TEMPORARY:
+			if (location >= metadata->temporary.location) {
+				metadata->temporary.location = location + nr_lbas;
+				write = true;
+			}
+			break;
+		case MetadataType::DATABASE:
+			if (location >= metadata->database.location) {
+				metadata->database.location = location + nr_lbas;
+				write = true;
+			}
+			break;
+		default:
+			throw InvalidInputException("no such metadatatype");
+
+	}
+	if (write){
+		idx_t bytes_to_write = sizeof(MAGIC_BYTES) + sizeof(GlobalMetadata);
+		idx_t medata_location = 0;
+
+		data_ptr_t buffer = allocator.AllocateData(bytes_to_write);
+
+		memcpy(buffer, MAGIC_BYTES, sizeof(MAGIC_BYTES));
+		memcpy(buffer + sizeof(MAGIC_BYTES), &metadata, sizeof(GlobalMetadata));
+
+		FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE | FileOpenFlags::FILE_FLAGS_FILE_CREATE;
+
+		unique_ptr<FileHandle> fh = fs->OpenFile(NVME_GLOBAL_METADATA_PATH, flags);
+		fs->Write(*fh, buffer, bytes_to_write, medata_location);
+
+		allocator.FreeData(buffer, bytes_to_write);
+	}
+
 }
 
-uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, std::string filename) {
+MetadataType GetMetadataType(const string &path){
+	PrintDebug("Determining metadatatype for path:");
+	PrintDebug(path.c_str());
+	if (StringUtil::Contains(path, ".wal")){
+		PrintDebug("It was Write ahead log");
+		return MetadataType::WAL;
+	} else if (StringUtil::Contains(path, "/tmp")) {
+		PrintDebug("It was the temporary");
+		return MetadataType::TEMPORARY;
+	} else {
+		PrintDebug("It was the database");
+		return MetadataType::DATABASE;
+	}
+}
+
+uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, std::string filename, idx_t location) {
+	// TODO: for WAL and temp ensure that it can fit in range
+	// otherwise increase size + update mapping to temp files for temp type
+	uint64_t lba{};
+
+	switch (type)
+	{
+	case MetadataType::WAL:
+		lba = metadata->write_ahead_log.location;
+		break;
+	case MetadataType::TEMPORARY:
+		lba = metadata->temporary.location;
+		break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.location;
+		break;
+	default:
+		throw InvalidInputException("no such metadatatype");
+	}
+
+	return lba;
 }
 
 unique_ptr<GlobalMetadata> NvmeFileSystemProxy::InitializeMetadata(optional_ptr<FileOpener> opener) {

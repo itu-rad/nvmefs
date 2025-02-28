@@ -16,19 +16,19 @@ void PrintMetadata(Metadata &meta, string name) {
 	std::cout << "start: " << meta.start << " end: " << meta.end << " loc: " << meta.location << std::endl;
 }
 void PrintDebug(string debug){
-	std::cout << debug << std:endl;
+	std::cout << debug << std::endl;
 }
-void PrintFullMetadata() {
-	PrintMetadata(metadata->database, "database");
-	PrintMetadata(metadata->write_ahead_log, "write_ahead_log");
-	PrintMetadata(metadata->temporary, "temporary");
+void PrintFullMetadata(GlobalMetadata &metadata) {
+	PrintMetadata(metadata.database, "database");
+	PrintMetadata(metadata.write_ahead_log, "write_ahead_log");
+	PrintMetadata(metadata.temporary, "temporary");
 }
 #else
 void PrintMetadata(Metadata &meta, string name) {
 }
 void PrintDebug(string debug) {
 }
-void PrintFullMetadata(){
+void PrintFullMetadata(GlobalMetadata &metadata){
 }
 #endif
 
@@ -46,7 +46,7 @@ void NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_byt
 	uint64_t lba_start_location = GetLBA(type, handle.path, location);
 	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
 	WriteMetadata(lba_start_location, written_lbas, type);
-	PrintFullMetadata();
+	PrintFullMetadata(*metadata);
 }
 
 unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpenFlags flags,
@@ -54,7 +54,7 @@ unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpe
 	if (!metadata) {
 		metadata = LoadMetadata(opener);
 
-		PrintFullMetadata();
+		PrintFullMetadata(*metadata);
 	}
 	return fs->OpenFile(path, flags, opener);
 }

@@ -131,7 +131,7 @@ void NvmeFileSystemProxy::WriteMetadata(uint64_t location, uint64_t nr_lbas, Met
 
 }
 
-MetadataType GetMetadataType(string path){
+MetadataType NvmeFileSystemProxy::GetMetadataType(string path){
 	PrintDebug("Determining metadatatype for path:");
 	PrintDebug(path);
 	if (StringUtil::Contains(path, ".wal")){

@@ -131,9 +131,9 @@ void NvmeFileSystemProxy::WriteMetadata(uint64_t location, uint64_t nr_lbas, Met
 
 }
 
-MetadataType GetMetadataType(const string &path){
+MetadataType GetMetadataType(string path){
 	PrintDebug("Determining metadatatype for path:");
-	PrintDebug(path.c_str());
+	PrintDebug(path);
 	if (StringUtil::Contains(path, ".wal")){
 		PrintDebug("It was Write ahead log");
 		return MetadataType::WAL;
@@ -146,7 +146,7 @@ MetadataType GetMetadataType(const string &path){
 	}
 }
 
-uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, std::string filename, idx_t location) {
+uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, string filename, idx_t location) {
 	// TODO: for WAL and temp ensure that it can fit in range
 	// otherwise increase size + update mapping to temp files for temp type
 	uint64_t lba{};

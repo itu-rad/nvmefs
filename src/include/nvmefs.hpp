@@ -39,6 +39,7 @@ protected:
 	uint32_t placement_identifier;
 };
 
+class NvmeFileSystemProxy;
 class NvmeFileSystem : public FileSystem {
 	friend class NvmeFileSystemProxy;
 public:

@@ -25,6 +25,6 @@ else
     # python -m pip install --user meson
     # export PATH=$PATH:/Users/runner/Library/Python/3.11/bin
     # bash ./scripts/xnvme/install.sh
-    sudo python -m pip install meson
-    sudo bash ./scripts/xnvme/ci-install.sh
+    python -m pip install meson
+    bash ./scripts/xnvme/ci-install.sh
 fi

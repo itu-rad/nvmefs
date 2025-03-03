@@ -19,9 +19,9 @@
 python -m pip install --user meson
 
 if [ "${DUCKDB_PLATFORM}" == "linux_amd64_musl" ] && [ "${LINUX_CI_IN_DOCKER}" == 0 ]; then
-    apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python
-    RUN python3 -m ensurepip
-    RUN pip3 install --no-cache --upgrade pip setuptools
+    apt-get install -y python3 && ln -sf python3 /usr/bin/python
+    python3 -m ensurepip
+    pip3 install --no-cache --upgrade pip setuptools
     sudo apt-get install -y ninja-build
     sudo bash ./scripts/xnvme/ci-install.sh
 else

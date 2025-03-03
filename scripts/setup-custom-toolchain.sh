@@ -22,7 +22,9 @@ if [ "${DUCKDB_PLATFORM}" == "linux_amd64_musl" ] && [ "${LINUX_CI_IN_DOCKER}" =
     sudo apt-get install -y ninja-build
     sudo bash ./scripts/xnvme/ci-install.sh
 else
-    python -m pip install --user meson
-    export PATH=$PATH:/Users/runner/Library/Python/3.11/bin
-    bash ./scripts/xnvme/install.sh
+    # python -m pip install --user meson
+    # export PATH=$PATH:/Users/runner/Library/Python/3.11/bin
+    # bash ./scripts/xnvme/install.sh
+    sudo python -m pip install meson
+    sudo bash ./scripts/xnvme/ci-install.sh
 fi

@@ -25,7 +25,8 @@ else
     # python -m pip install --user meson
     # export PATH=$PATH:/Users/runner/Library/Python/3.11/bin
     # bash ./scripts/xnvme/install.sh
-    apk add -qq python3 py3-pip
+    apk add -qq python3
+    python -m ensurepip --upgrade --user
     python3 -m pip install meson
     bash ./scripts/xnvme/ci-install.sh
 fi

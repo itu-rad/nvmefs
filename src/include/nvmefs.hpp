@@ -55,6 +55,7 @@ protected:
 
 class NvmeFileSystemProxy;
 class NvmeFileSystem : public FileSystem {
+	friend class NvmeFileSystemProxy;
 public:
 	NvmeFileSystem(NvmeFileSystemProxy &proxy_ref);
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
@@ -71,6 +72,7 @@ public:
 
 protected:
 	uint8_t GetPlacementIdentifierIndexOrDefault(const string &path);
+	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location);
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;

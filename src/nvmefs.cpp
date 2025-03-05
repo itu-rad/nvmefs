@@ -182,6 +182,11 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+	// fall-back - throw away number of LBA's written
+	WriteInternal(handle, buffer, nr_bytes, location);
+}
+
+uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand(nr_bytes);
 
@@ -197,16 +202,18 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 	}
 
 	nvme_handle.FreeDeviceBuffer(dev_buffer);
+
+	return nvme_ctx->number_of_lbas;
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	throw IOException("Not implemented");
-	return 0;
+	Read(handle, buffer, nr_bytes, 0);
+	return nr_bytes;
 }
 
 int64_t NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	throw IOException("Not implemented");
-	return 0;
+	Write(handle, buffer, nr_bytes, 0);
+	return nr_bytes;
 }
 
 bool NvmeFileSystem::CanHandleFile(const string &path) {

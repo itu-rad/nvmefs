@@ -18,8 +18,7 @@
 
 
 if [ "${DUCKDB_PLATFORM}" == "linux_amd64_musl" ] && [ "${LINUX_CI_IN_DOCKER}" == 1 ]; then
-    apk add -qq python3
-    apk add -qq py3-pip
+    apk add -qq python3 py3-pip bsd-compat-headers
     # python -m ensurepip --upgrade --user
     python3 -m pip install meson --break-system-packages
     bash ./scripts/xnvme/ci-install.sh

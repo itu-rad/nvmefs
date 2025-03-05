@@ -89,22 +89,28 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::LoadMetadata(optional_ptr<FileOp
 
 void NvmeFileSystemProxy::WriteMetadata(uint64_t location, uint64_t nr_lbas, MetadataType type) {
 	bool write = false;
+
+	// Number of locations that the number of LBAs will occupy
+	uint64_t occupy = (nr_lbas + LBAS_PER_LOCATION - 1) / LBAS_PER_LOCATION;
+	// Translate location count to LBAs
+	uint64_t lba_occupy = occupy * LBAS_PER_LOCATION;
+
 	switch (type) {
 		case MetadataType::WAL:
 			if (location >= metadata->write_ahead_log.location){
-				metadata->write_ahead_log.location = location + nr_lbas;
+				metadata->write_ahead_log.location = location + lba_occupy;
 				write = true;
 			}
 			break;
 		case MetadataType::TEMPORARY:
 			if (location >= metadata->temporary.location) {
-				metadata->temporary.location = location + nr_lbas;
+				metadata->temporary.location = location + lba_occupy;
 				write = true;
 			}
 			break;
 		case MetadataType::DATABASE:
 			if (location >= metadata->database.location) {
-				metadata->database.location = location + nr_lbas;
+				metadata->database.location = location + lba_occupy;
 				write = true;
 			}
 			break;
@@ -151,16 +157,27 @@ uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, string filename, idx_t l
 	// otherwise increase size + update mapping to temp files for temp type
 	uint64_t lba{};
 
+	uint64_t location_lba_position = LBAS_PER_LOCATION * location;
+
 	switch (type)
 	{
 	case MetadataType::WAL:
-		lba = metadata->write_ahead_log.location;
+		// TODO: Alignment???
+		if (location_lba_position < metadata->write_ahead_log.location) {
+			lba = metadata->write_ahead_log.start + location_lba_position;
+		} else {
+			lba = metadata->write_ahead_log.location;
+		}
 		break;
 	case MetadataType::TEMPORARY:
-		lba = metadata->temporary.location;
+		if (file_to_lba.count(filename)) {
+			lba = file_to_lba[filename] + location_lba_position;
+		} else {
+			lba = metadata->temporary.location;
+		}
 		break;
 	case MetadataType::DATABASE:
-		lba = metadata->database.location;
+		lba = metadata->database.start + location_lba_position;
 		break;
 	default:
 		throw InvalidInputException("no such metadatatype");

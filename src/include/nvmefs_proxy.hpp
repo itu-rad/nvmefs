@@ -12,6 +12,8 @@ namespace duckdb {
 #define NVMEFS_METADATA_LOCATION 0
 // TODO: Use NVME_PREFIX_PATH instead of hardcode 'nvmefs://'
 const std::string NVME_GLOBAL_METADATA_PATH = "nvmefs://.global_metadata";
+// TODO: Do not use magic constants here. Possibly get both from configuration.
+constexpr uint64_t LBAS_PER_LOCATION = DUCKDB_BLOCK_ALLOC_SIZE / 4096;
 
 enum MetadataType { DATABASE, WAL, TEMPORARY };
 

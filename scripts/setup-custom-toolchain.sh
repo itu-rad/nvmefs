@@ -27,6 +27,6 @@ else
     # bash ./scripts/xnvme/install.sh
     apk add -qq python3
     python -m ensurepip --upgrade --user
-    python3 -m pip install meson
+    python -m pip install meson
     bash ./scripts/xnvme/ci-install.sh
 fi

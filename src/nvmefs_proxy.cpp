@@ -174,6 +174,7 @@ uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, string filename, idx_t l
 			lba = file_to_lba[filename] + location_lba_position;
 		} else {
 			lba = metadata->temporary.location;
+			file_to_lba[filename] = lba;
 		}
 		break;
 	case MetadataType::DATABASE:

@@ -202,6 +202,8 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 	}
 
 	nvme_handle.FreeDeviceBuffer(dev_buffer);
+
+	return nvme_ctx->number_of_lbas;
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {

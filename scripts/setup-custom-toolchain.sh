@@ -17,11 +17,7 @@
 #   to fetch a git submodules files.
 
 
-if [ "${DUCKDB_PLATFORM}" == "linux_amd64_musl" ] && [ "${LINUX_CI_IN_DOCKER}" == 0 ]; then
-    # sudo python -m pip install meson
-    # sudo apt-get install -y ninja-build
-    # sudo bash ./scripts/xnvme/ci-install.sh
-else
+if [ "${DUCKDB_PLATFORM}" == "linux_amd64_musl" ] && [ "${LINUX_CI_IN_DOCKER}" == 1 ]; then
     apk add -qq python3
     apk add -qq py3-pip
     # python -m ensurepip --upgrade --user

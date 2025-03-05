@@ -226,4 +226,11 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::InitializeMetadata(optional_ptr<
 	return std::move(global);
 }
 
+int64_t NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_bytes){
+	return fs->Read(handle, buffer, nr_bytes);
+}
+int64_t NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_bytes){
+	return fs->Write(handle, buffer, nr_bytes);
+}
+
 } // namespace duckdb

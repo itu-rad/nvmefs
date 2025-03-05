@@ -1,8 +1,10 @@
 #pragma once
 
-#include "duckdb.h"
+#include "duckdb.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/map.hpp"
+#include "duckdb/storage/storage_info.hpp"
+
 #include "nvmefs.hpp"
 
 #include <string>
@@ -44,6 +46,8 @@ public:
 	                                optional_ptr<FileOpener> opener = nullptr) override;
 	void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
+	int64_t Read(FileHandle &handle, void *buffer, int64_t nr_bytes);
+	int64_t Write(FileHandle &handle, void *buffer, int64_t nr_bytes);
 	bool CanHandleFile(const string &fpath) override;
 
 	string GetName() const {

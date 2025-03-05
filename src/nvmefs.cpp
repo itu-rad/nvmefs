@@ -207,13 +207,13 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	throw IOException("Not implemented");
-	return 0;
+	Read(handle, buffer, nr_bytes, 0);
+	return nr_bytes;
 }
 
 int64_t NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	throw IOException("Not implemented");
-	return 0;
+	Write(handle, buffer, nr_bytes, 0);
+	return nr_bytes;
 }
 
 bool NvmeFileSystem::CanHandleFile(const string &path) {

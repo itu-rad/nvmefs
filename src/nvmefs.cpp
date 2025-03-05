@@ -1,6 +1,8 @@
 #include "include/nvmefs.hpp"
 
 #include "duckdb/common/string_util.hpp"
+#include "duckdb/main/secret/secret_manager.hpp"
+#include "duckdb/common/file_opener.hpp"
 
 #include <libxnvme.h>
 
@@ -10,7 +12,7 @@ namespace duckdb {
  * NvmeFileHandle
  ****************************/
 
-NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device)
+NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device, uint8_t plid_count)
     : FileHandle(file_system, path) {
 	// Get placemenet handle indentifier and create placement idenetifier
 	// Inspiration: https://github.com/xnvme/xnvme/blob/be52a634c139647b14940ba8a3ff254d6b1ca8c4/tools/xnvme.c#L833
@@ -20,7 +22,7 @@ NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t pli
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 
 	struct xnvme_spec_ruhs *ruhs = nullptr;
-	uint32_t ruhs_nbytes = sizeof(*ruhs) + FDP_PLID_COUNT + sizeof(struct xnvme_spec_ruhs_desc);
+	uint32_t ruhs_nbytes = sizeof(*ruhs) + plid_count + sizeof(struct xnvme_spec_ruhs_desc);
 
 	ruhs = (struct xnvme_spec_ruhs *)xnvme_buf_alloc(device, ruhs_nbytes);
 	memset(ruhs, 0, ruhs_nbytes);
@@ -112,7 +114,13 @@ NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref) : proxy_filesyste
 
 unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags,
                                                 optional_ptr<FileOpener> opener) {
-	const string device_path = "/dev/nvme1n1"; // TODO: Temporary device path. Should come from settings
+
+	FileOpenerInfo info;
+	info.file_path = "nvmefs://";
+	KeyValueSecretReader secret_reader(*opener, info, "nvmefs");
+
+	string device_path;
+	secret_reader.TryGetSecretKeyOrSetting("nvme_device_path", "nvme_device_path", device_path);
 
 	// TODO: Read settings from FileOpener if pressent. Else use defaults...
 
@@ -128,9 +136,11 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 
 	// Get and add placement identifier for path
 	uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
+	uint8_t plid_count;
+	secret_reader.TryGetSecretKeyOrSetting("fdp_plhdls", "fdp_plhdls", plid_count);
 
 	unique_ptr<NvmeFileHandle> file_handler =
-	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device);
+	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count);
 
 	return std::move(file_handler);
 }

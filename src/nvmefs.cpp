@@ -12,8 +12,9 @@ namespace duckdb {
  * NvmeFileHandle
  ****************************/
 
-NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device, uint8_t plid_count)
-    : FileHandle(file_system, path) {
+NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device,
+                               uint8_t plid_count, FileOpenFlags flags)
+    : FileHandle(file_system, path, flags) {
 	// Get placemenet handle indentifier and create placement idenetifier
 	// Inspiration: https://github.com/xnvme/xnvme/blob/be52a634c139647b14940ba8a3ff254d6b1ca8c4/tools/xnvme.c#L833
 	this->device = device;

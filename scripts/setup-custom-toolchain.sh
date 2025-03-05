@@ -28,6 +28,6 @@ else
     apk add -qq python3
     apk add -qq py3-pip
     # python -m ensurepip --upgrade --user
-    python -m pip install meson
+    python3 -m pip install meson --break-system-packages
     bash ./scripts/xnvme/ci-install.sh
 fi

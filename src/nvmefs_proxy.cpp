@@ -81,7 +81,7 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::LoadMetadata(optional_ptr<FileOp
 	}
 
 	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata {});
-	memcpy(&global, (buffer + sizeof(MAGIC_BYTES)), sizeof(GlobalMetadata));
+	memcpy(global.get(), (buffer + sizeof(MAGIC_BYTES)), sizeof(GlobalMetadata));
 
 	allocator.FreeData(buffer, bytes_to_read);
 
@@ -125,7 +125,7 @@ void NvmeFileSystemProxy::WriteMetadata(uint64_t location, uint64_t nr_lbas, Met
 		data_ptr_t buffer = allocator.AllocateData(bytes_to_write);
 
 		memcpy(buffer, MAGIC_BYTES, sizeof(MAGIC_BYTES));
-		memcpy(buffer + sizeof(MAGIC_BYTES), &metadata, sizeof(GlobalMetadata));
+		memcpy(buffer + sizeof(MAGIC_BYTES), metadata.get(), sizeof(GlobalMetadata));
 
 		FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE | FileOpenFlags::FILE_FLAGS_FILE_CREATE;
 

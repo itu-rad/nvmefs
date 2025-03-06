@@ -253,7 +253,12 @@ int64_t NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_b
 	MetadataType meta_type = GetMetadataType(handle.path);
 	uint64_t lba_start_location = GetStartLBA(meta_type, handle.path);
 
-	fs->Read(handle, buffer, nr_bytes, lba_start_location);
+	data_ptr_t temp_buf = allocator.AllocateData(nr_bytes);
+
+	fs->Read(handle, temp_buf, nr_bytes, lba_start_location);
+
+	memcpy(buffer, temp_buf, nr_bytes);
+	allocator.FreeData(temp_buf, nr_bytes);
 
 	return nr_bytes;
 }

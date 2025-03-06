@@ -275,4 +275,16 @@ int64_t NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_
 	return nr_bytes;
 }
 
+bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOpener> opener = nullptr) {
+
+	// TODO: Add statement to check if the file is a db file in order to init/load metadata
+	//		 in this function
+	if (!metadata) {
+
+		PrintFullMetadata(*metadata);
+	}
+
+	// metadata->
+}
+
 } // namespace duckdb

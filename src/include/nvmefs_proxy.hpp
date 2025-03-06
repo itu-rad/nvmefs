@@ -31,6 +31,9 @@ struct Metadata {
 };
 
 struct GlobalMetadata {
+	uint64_t db_path_size;
+	string db_path;
+
 	Metadata database;
 	Metadata write_ahead_log;
 	Metadata temporary;
@@ -49,6 +52,7 @@ public:
 	int64_t Read(FileHandle &handle, void *buffer, int64_t nr_bytes);
 	int64_t Write(FileHandle &handle, void *buffer, int64_t nr_bytes);
 	bool CanHandleFile(const string &fpath) override;
+	bool FileExists(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 
 	string GetName() const {
 		return "NvmeFileSystemProxy";

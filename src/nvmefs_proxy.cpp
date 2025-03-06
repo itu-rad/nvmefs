@@ -152,6 +152,31 @@ MetadataType NvmeFileSystemProxy::GetMetadataType(string path){
 	}
 }
 
+uint64_t NvmeFileSystemProxy::GetStartLBA(MetadataType type, string filename) {
+	uint64_t lba {};
+
+	switch (type) {
+	case MetadataType::WAL:
+		// TODO: Alignment???
+		lba = metadata->write_ahead_log.start;
+		break;
+	case MetadataType::TEMPORARY:
+		if (file_to_lba.count(filename)) {
+			lba = file_to_lba[filename];
+		} else {
+			lba = metadata->temporary.start;
+		}
+		break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.start;
+		break;
+	default:
+		throw InvalidInputException("no such metadatatype");
+	}
+
+	return lba;
+}
+
 uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, string filename, idx_t location) {
 	// TODO: for WAL and temp ensure that it can fit in range
 	// otherwise increase size + update mapping to temp files for temp type

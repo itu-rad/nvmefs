@@ -163,7 +163,7 @@ uint64_t NvmeFileSystemProxy::GetStartLBA(MetadataType type, string filename) {
 		if (file_to_lba.count(filename)) {
 			lba = file_to_lba[filename];
 		} else {
-			lba = metadata->temporary.start;
+			lba = metadata->temporary.location;
 		}
 		break;
 	case MetadataType::DATABASE:

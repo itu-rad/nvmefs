@@ -206,16 +206,6 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 	return nvme_ctx->number_of_lbas;
 }
 
-int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	Read(handle, buffer, nr_bytes, 0);
-	return nr_bytes;
-}
-
-int64_t NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	Write(handle, buffer, nr_bytes, 0);
-	return nr_bytes;
-}
-
 bool NvmeFileSystem::CanHandleFile(const string &path) {
 	return StringUtil::StartsWith(path, NVMEFS_PATH_PREFIX);
 }

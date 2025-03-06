@@ -56,14 +56,13 @@ protected:
 class NvmeFileSystemProxy;
 class NvmeFileSystem : public FileSystem {
 	friend class NvmeFileSystemProxy;
+
 public:
 	NvmeFileSystem(NvmeFileSystemProxy &proxy_ref);
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
 	                                optional_ptr<FileOpener> opener = nullptr) override;
 	void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
-	int64_t Read(FileHandle &handle, void *buffer, int64_t nr_bytes) override;
-	int64_t Write(FileHandle &handle, void *buffer, int64_t nr_bytes) override;
 	bool CanHandleFile(const string &fpath) override;
 
 	string GetName() const {

@@ -59,9 +59,11 @@ public:
 	}
 
 private:
-	unique_ptr<GlobalMetadata> LoadMetadata(optional_ptr<FileOpener> opener);
-	unique_ptr<GlobalMetadata> InitializeMetadata(optional_ptr<FileOpener> opener);
-	void WriteMetadata(uint64_t location, uint64_t nr_lbas, MetadataType type);
+	bool TryLoadMetadata(optional_ptr<FileOpener> opener);
+	unique_ptr<GlobalMetadata> InitializeMetadata(string path, optional_ptr<FileOpener> opener);
+	unique_ptr<GlobalMetadata> ReadMetadata(optional_ptr<FileOpener> opener);
+	void WriteMetadata(GlobalMetadata *global);
+	void UpdateMetadata(uint64_t location, uint64_t nr_lbas, MetadataType type);
 	MetadataType GetMetadataType(string path);
 	uint64_t GetLBA(MetadataType type, string filename, idx_t location);
 	uint64_t GetStartLBA(MetadataType type, string filename);

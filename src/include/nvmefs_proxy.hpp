@@ -32,7 +32,8 @@ struct Metadata {
 
 struct GlobalMetadata {
 	uint64_t db_path_size;
-	string db_path;
+	// TODO: use string instead
+	char db_path[101];
 
 	Metadata database;
 	Metadata write_ahead_log;

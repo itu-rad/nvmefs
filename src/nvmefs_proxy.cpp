@@ -109,7 +109,7 @@ bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOp
 	case DATABASE:
 	case WAL:
 
-		if(StringUtil::Equals(path_no_ext.data(), metadata->db_path.data())) {
+		if(StringUtil::Equals(path_no_ext.data(), metadata->db_path)) {
 			exists = true;
 		} else {
 			throw IOException("Not possible to have multiple databases");
@@ -156,12 +156,18 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::InitializeMetadata(string path, 
 
 	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata {});
 
+
+	if (path.length() > 100) {
+		throw IOException("Database name is too long.");
+	}
+
 	global->database = meta_db;
 	global->temporary = meta_temp;
 	global->write_ahead_log = meta_wal;
 
 	global->db_path_size = path.length();
-	global->db_path = path;
+	strncpy(global->db_path, path.data(), path.length());
+	global->db_path[100] = '\0';
 
 	WriteMetadata(global.get());
 

@@ -92,7 +92,7 @@ bool NvmeFileSystemProxy::CanHandleFile(const string &fpath) {
 	return fs->CanHandleFile(fpath);
 }
 
-bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOpener> opener = nullptr) {
+bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOpener> opener) {
 
 	// TODO: Add statement to check if the file is a db file in order to init/load metadata
 	//		 in this function

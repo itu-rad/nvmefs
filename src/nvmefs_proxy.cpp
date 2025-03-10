@@ -139,7 +139,7 @@ bool NvmeFileSystemProxy::TryLoadMetadata(optional_ptr<FileOpener> opener) {
 	return false;
 }
 
-unique_ptr<GlobalMetadata> NvmeFileSystemProxy::InitializeMetadata(string path, optional_ptr<FileOpener> opener) {
+void NvmeFileSystemProxy::InitializeMetadata(string path, optional_ptr<FileOpener> opener) {
 	// Create buffer
 	// insert magic bytes
 	// insert metadata
@@ -171,7 +171,7 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::InitializeMetadata(string path, 
 
 	WriteMetadata(global.get());
 
-	return std::move(global);
+	metadata = std::move(global);
 }
 
 unique_ptr<GlobalMetadata> NvmeFileSystemProxy::ReadMetadata(optional_ptr<FileOpener> opener) {

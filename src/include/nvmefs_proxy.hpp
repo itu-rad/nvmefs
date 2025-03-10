@@ -61,7 +61,7 @@ public:
 
 private:
 	bool TryLoadMetadata(optional_ptr<FileOpener> opener);
-	unique_ptr<GlobalMetadata> InitializeMetadata(string path, optional_ptr<FileOpener> opener);
+	void InitializeMetadata(string path, optional_ptr<FileOpener> opener);
 	unique_ptr<GlobalMetadata> ReadMetadata(optional_ptr<FileOpener> opener);
 	void WriteMetadata(GlobalMetadata *global);
 	void UpdateMetadata(uint64_t location, uint64_t nr_lbas, MetadataType type);

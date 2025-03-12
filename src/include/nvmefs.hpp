@@ -25,7 +25,7 @@ class NvmeFileHandle : public FileHandle {
 
 public:
 	NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device, uint8_t plid_count,
-	               FileOpenFlags flags);
+	               FileOpenFlags flags, bool internal_fileHandle = false);
 	~NvmeFileHandle() override;
 
 	void Read(void *buffer, idx_t nr_bytes, idx_t location);
@@ -54,6 +54,9 @@ protected:
 	xnvme_dev *device;
 	uint32_t placement_identifier;
 	uint8_t placement_identifier_count;
+
+private:
+	bool internal_fileHandle; // Means that this file handle is used in the context of another file handle
 };
 
 class NvmeFileSystemProxy;

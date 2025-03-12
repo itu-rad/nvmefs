@@ -42,6 +42,7 @@ struct GlobalMetadata {
 
 class NvmeFileSystem;
 typedef NvmeFileHandle MetadataFileHandle;
+
 class NvmeFileSystemProxy : public FileSystem {
 public:
 	NvmeFileSystemProxy();

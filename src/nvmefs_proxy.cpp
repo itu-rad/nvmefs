@@ -37,14 +37,17 @@ NvmeFileSystemProxy::NvmeFileSystemProxy()
 
 unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpenFlags flags,
                                                      optional_ptr<FileOpener> opener) {
-	if(!metadata || !TryLoadMetadata(opener)) {
+
+	unique_ptr<FileHandle> handle = fs->OpenFile(path, flags, opener);
+
+	if (!metadata || !TryLoadMetadata(opener)) {
 		if (GetMetadataType(path) != MetadataType::DATABASE) {
 			throw IOException("No attached database");
 		} else {
-			InitializeMetadata(path, opener);
+			InitializeMetadata(*handle.get(), path);
 		}
 	}
-	return fs->OpenFile(path, flags, opener);
+	return move(handle);
 }
 
 void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
@@ -58,7 +61,7 @@ void NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_byt
 	MetadataType type = GetMetadataType(handle.path);
 	uint64_t lba_start_location = GetLBA(type, handle.path, location);
 	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
-	UpdateMetadata(lba_start_location, written_lbas, type);
+	UpdateMetadata(handle, lba_start_location, written_lbas, type);
 	PrintFullMetadata(*metadata);
 }
 
@@ -82,7 +85,7 @@ int64_t NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_
 
 	int64_t lbas_written = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
 
-	UpdateMetadata(lba_start_location, lbas_written, meta_type);
+	UpdateMetadata(handle, lba_start_location, lbas_written, meta_type);
 	PrintFullMetadata(*metadata);
 
 	return nr_bytes;
@@ -96,27 +99,27 @@ bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOp
 
 	// TODO: Add statement to check if the file is a db file in order to init/load metadata
 	//		 in this function
-	if(!metadata || !TryLoadMetadata(opener)) {
+	if (!metadata || !TryLoadMetadata(opener)) {
 		return false;
 	}
 
 	MetadataType type = GetMetadataType(filename);
 	bool exists = false;
 	string path_no_ext = StringUtil::GetFileStem(filename);
+	string db_path_no_ext = StringUtil::GetFileStem(metadata->db_path);
 
-	switch (type)
-	{
+	switch (type) {
 	case DATABASE:
 	case WAL:
 
-		if(StringUtil::Equals(path_no_ext.data(), metadata->db_path)) {
+		if (StringUtil::Equals(path_no_ext.data(), db_path_no_ext.data())) {
 			exists = true;
 		} else {
 			throw IOException("Not possible to have multiple databases");
 		}
 		break;
 	case TEMPORARY:
-		if(file_to_lba.count(filename)){
+		if (file_to_lba.count(filename)) {
 			exists = true;
 		}
 		break;
@@ -129,9 +132,13 @@ bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOp
 }
 
 bool NvmeFileSystemProxy::TryLoadMetadata(optional_ptr<FileOpener> opener) {
-	if (metadata) { return true; }
+	if (metadata) {
+		return true;
+	}
 
-	unique_ptr<GlobalMetadata> global = ReadMetadata(opener);
+	unique_ptr<FileHandle> handle = fs->OpenFile(NVME_GLOBAL_METADATA_PATH, FileOpenFlags::FILE_FLAGS_READ, opener);
+
+	unique_ptr<GlobalMetadata> global = ReadMetadata(*handle.get());
 	if (global) {
 		metadata = std::move(global);
 		return true;
@@ -139,7 +146,7 @@ bool NvmeFileSystemProxy::TryLoadMetadata(optional_ptr<FileOpener> opener) {
 	return false;
 }
 
-void NvmeFileSystemProxy::InitializeMetadata(string path, optional_ptr<FileOpener> opener) {
+void NvmeFileSystemProxy::InitializeMetadata(FileHandle &handle, string path) {
 	// Create buffer
 	// insert magic bytes
 	// insert metadata
@@ -156,7 +163,6 @@ void NvmeFileSystemProxy::InitializeMetadata(string path, optional_ptr<FileOpene
 
 	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata {});
 
-
 	if (path.length() > 100) {
 		throw IOException("Database name is too long.");
 	}
@@ -169,18 +175,22 @@ void NvmeFileSystemProxy::InitializeMetadata(string path, optional_ptr<FileOpene
 	strncpy(global->db_path, path.data(), path.length());
 	global->db_path[100] = '\0';
 
-	WriteMetadata(global.get());
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE | FileOpenFlags::FILE_FLAGS_FILE_CREATE;
+
+	unique_ptr<MetadataFileHandle> fh = fs->OpenMetadataFile(handle, NVME_GLOBAL_METADATA_PATH, flags);
+
+	WriteMetadata(fh, global.get());
 
 	metadata = std::move(global);
 }
 
-unique_ptr<GlobalMetadata> NvmeFileSystemProxy::ReadMetadata(optional_ptr<FileOpener> opener) {
+unique_ptr<GlobalMetadata> NvmeFileSystemProxy::ReadMetadata(FileHandle &handle) {
 
 	idx_t bytes_to_read = sizeof(MAGIC_BYTES) + sizeof(GlobalMetadata);
 	data_ptr_t buffer = allocator.AllocateData(bytes_to_read);
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ;
 
-	unique_ptr<FileHandle> fh = fs->OpenFile(NVME_GLOBAL_METADATA_PATH, flags, opener);
+	unique_ptr<MetadataFileHandle> fh = fs->OpenMetadataFile(handle, NVME_GLOBAL_METADATA_PATH, flags);
 
 	fs->Read(*fh, buffer, bytes_to_read, NVMEFS_METADATA_LOCATION);
 
@@ -197,7 +207,7 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::ReadMetadata(optional_ptr<FileOp
 	return std::move(global);
 }
 
-void NvmeFileSystemProxy::WriteMetadata(GlobalMetadata *global) {
+void NvmeFileSystemProxy::WriteMetadata(MetadataFileHandle &handle, GlobalMetadata *global) {
 	idx_t bytes_to_write = sizeof(MAGIC_BYTES) + sizeof(GlobalMetadata);
 	idx_t medata_location = 0;
 
@@ -206,15 +216,12 @@ void NvmeFileSystemProxy::WriteMetadata(GlobalMetadata *global) {
 	memcpy(buffer, MAGIC_BYTES, sizeof(MAGIC_BYTES));
 	memcpy(buffer + sizeof(MAGIC_BYTES), global, sizeof(GlobalMetadata));
 
-	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE | FileOpenFlags::FILE_FLAGS_FILE_CREATE;
-	unique_ptr<FileHandle> fh = fs->OpenFile(NVME_GLOBAL_METADATA_PATH, flags);
-
-	fs->Write(*fh, buffer, bytes_to_write, medata_location);
+	fs->Write(handle, buffer, bytes_to_write, medata_location);
 
 	allocator.FreeData(buffer, bytes_to_write);
 }
 
-void NvmeFileSystemProxy::UpdateMetadata(uint64_t location, uint64_t nr_lbas, MetadataType type) {
+void NvmeFileSystemProxy::UpdateMetadata(FileHandle &handle, uint64_t location, uint64_t nr_lbas, MetadataType type) {
 	bool write = false;
 
 	// Number of locations that the number of LBAs will occupy
@@ -245,7 +252,9 @@ void NvmeFileSystemProxy::UpdateMetadata(uint64_t location, uint64_t nr_lbas, Me
 		throw InvalidInputException("no such metadatatype");
 	}
 	if (write) {
-		WriteMetadata(metadata.get());
+		FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
+		unique_ptr<MetadataFileHandle> fh = fs->OpenMetadataFile(handle, NVME_GLOBAL_METADATA_PATH, flags);
+		WriteMetadata(fh.get(), metadata.get());
 	}
 }
 

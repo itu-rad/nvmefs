@@ -13,11 +13,12 @@ namespace duckdb {
  ****************************/
 
 NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device,
-                               uint8_t plid_count, FileOpenFlags flags)
+                               uint8_t plid_count, FileOpenFlags flags, bool internal_fileHandle)
     : FileHandle(file_system, path, flags) {
 	// Get placemenet handle indentifier and create placement idenetifier
 	// Inspiration: https://github.com/xnvme/xnvme/blob/be52a634c139647b14940ba8a3ff254d6b1ca8c4/tools/xnvme.c#L833
 	this->device = device;
+	this->internal_fileHandle = internal_fileHandle;
 
 	struct xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
 	uint32_t nsid = xnvme_dev_get_nsid(device);
@@ -32,13 +33,16 @@ NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t pli
 
 	uint16_t phid = ruhs->desc[plid_idx].pi;
 
+	this->placement_identifier_count = plid_count;
 	this->placement_identifier = phid << 16;
 
 	xnvme_buf_free(device, ruhs);
 }
 
 NvmeFileHandle::~NvmeFileHandle() {
-	xnvme_dev_close(device);
+	if (!internal_fileHandle) {
+		xnvme_dev_close(device);
+	}
 };
 
 void NvmeFileHandle::Read(void *buffer, idx_t nr_bytes, idx_t location) {
@@ -141,7 +145,23 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 	secret_reader.TryGetSecretKeyOrSetting("fdp_plhdls", "fdp_plhdls", plid_count);
 
 	unique_ptr<NvmeFileHandle> file_handler =
-	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, flags);
+	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, flags, false);
+
+	return std::move(file_handler);
+}
+
+unique_ptr<MetadataFileHandle> NvmeFileSystem::OpenMetadataFile(FileHandle &handle, string path, FileOpenFlags flags) {
+
+	// Get FDP placement identifier specifically for metadata
+	uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
+
+	// Cast handle to NvmeFileHandle to get access to specical context
+	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
+	xnvme_dev *device = fh.device;
+	uint8_t plid_count = fh.placement_identifier_count;
+
+	unique_ptr<NvmeFileHandle> file_handler =
+	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, flags, true);
 
 	return std::move(file_handler);
 }

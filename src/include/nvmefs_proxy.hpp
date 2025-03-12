@@ -31,12 +31,19 @@ struct Metadata {
 };
 
 struct GlobalMetadata {
+	uint64_t db_path_size;
+	// TODO: use string instead
+	char db_path[101];
+
 	Metadata database;
 	Metadata write_ahead_log;
 	Metadata temporary;
 };
 
 class NvmeFileSystem;
+class NvmeFileHandle;
+typedef NvmeFileHandle MetadataFileHandle;
+
 class NvmeFileSystemProxy : public FileSystem {
 public:
 	NvmeFileSystemProxy();
@@ -49,15 +56,18 @@ public:
 	int64_t Read(FileHandle &handle, void *buffer, int64_t nr_bytes);
 	int64_t Write(FileHandle &handle, void *buffer, int64_t nr_bytes);
 	bool CanHandleFile(const string &fpath) override;
+	bool FileExists(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 
 	string GetName() const {
 		return "NvmeFileSystemProxy";
 	}
 
 private:
-	unique_ptr<GlobalMetadata> LoadMetadata(optional_ptr<FileOpener> opener);
-	unique_ptr<GlobalMetadata> InitializeMetadata(optional_ptr<FileOpener> opener);
-	void WriteMetadata(uint64_t location, uint64_t nr_lbas, MetadataType type);
+	bool TryLoadMetadata(optional_ptr<FileOpener> opener);
+	void InitializeMetadata(FileHandle &handle, string path);
+	unique_ptr<GlobalMetadata> ReadMetadata(FileHandle &handle);
+	void WriteMetadata(MetadataFileHandle &handle, GlobalMetadata *global);
+	void UpdateMetadata(FileHandle &handle, uint64_t location, uint64_t nr_lbas, MetadataType type);
 	MetadataType GetMetadataType(string path);
 	uint64_t GetLBA(MetadataType type, string filename, idx_t location);
 	uint64_t GetStartLBA(MetadataType type, string filename);

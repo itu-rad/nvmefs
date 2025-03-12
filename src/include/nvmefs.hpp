@@ -18,12 +18,14 @@ struct NvmeCmdContext {
 
 typedef void *nvme_buf_ptr;
 
+class NvmeFileHandle;
+typedef NvmeFileHandle MetadataFileHandle;
 class NvmeFileHandle : public FileHandle {
 	friend class NvmeFileSystem;
 
 public:
 	NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device, uint8_t plid_count,
-	               FileOpenFlags flags);
+	               FileOpenFlags flags, bool internal_fileHandle = false);
 	~NvmeFileHandle() override;
 
 	void Read(void *buffer, idx_t nr_bytes, idx_t location);
@@ -51,6 +53,10 @@ protected:
 protected:
 	xnvme_dev *device;
 	uint32_t placement_identifier;
+	uint8_t placement_identifier_count;
+
+private:
+	bool internal_fileHandle; // Means that this file handle is used in the context of another file handle
 };
 
 class NvmeFileSystemProxy;
@@ -61,6 +67,7 @@ public:
 	NvmeFileSystem(NvmeFileSystemProxy &proxy_ref);
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
 	                                optional_ptr<FileOpener> opener = nullptr) override;
+
 	void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	bool CanHandleFile(const string &fpath) override;
@@ -72,6 +79,12 @@ public:
 protected:
 	uint8_t GetPlacementIdentifierIndexOrDefault(const string &path);
 	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location);
+
+	/// @brief Opens a file handle for metadata in the context of a given file handle
+	/// @param handle The file handle to get context from
+	/// @param path The "internal" metadata file path
+	/// @return FileHandle specifically for the metadata section of the device
+	unique_ptr<MetadataFileHandle> OpenMetadataFile(FileHandle &handle, string path, FileOpenFlags flags);
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;

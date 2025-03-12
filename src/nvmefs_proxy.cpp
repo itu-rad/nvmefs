@@ -85,6 +85,7 @@ int64_t NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_
 
 	int64_t lbas_written = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
 
+	PrintDebug("Number of bytes: " + std::to_string(nr_bytes) + "\n");
 	UpdateMetadata(handle, lba_start_location, lbas_written, meta_type);
 	PrintFullMetadata(*metadata);
 
@@ -109,11 +110,28 @@ bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOp
 	string db_path_no_ext = StringUtil::GetFileStem(metadata->db_path);
 
 	switch (type) {
-	case DATABASE:
+      
 	case WAL:
+		/*
+		    Intentional fall-through. Need to remove the '.wal' and db ext
+		    before evaluating if the file exists.
 
+		    Example:
+		        string filename = "test.db.wal"
+
+		        // After two calls to GetFileStem would be: "test"
+
+		*/
+		path_no_ext = StringUtil::GetFileStem(path_no_ext);
+
+	case DATABASE:
 		if (StringUtil::Equals(path_no_ext.data(), db_path_no_ext.data())) {
-			exists = true;
+			uint64_t start_lba = GetStartLBA(type, filename);
+			uint64_t location_lba = GetLocationLBA(type, filename);
+
+			if ((location_lba - start_lba) > 0) {
+				exists = true;
+			}
 		} else {
 			throw IOException("Not possible to have multiple databases");
 		}
@@ -224,27 +242,22 @@ void NvmeFileSystemProxy::WriteMetadata(MetadataFileHandle &handle, GlobalMetada
 void NvmeFileSystemProxy::UpdateMetadata(FileHandle &handle, uint64_t location, uint64_t nr_lbas, MetadataType type) {
 	bool write = false;
 
-	// Number of locations that the number of LBAs will occupy
-	uint64_t occupy = (nr_lbas + LBAS_PER_LOCATION - 1) / LBAS_PER_LOCATION;
-	// Translate location count to LBAs
-	uint64_t lba_occupy = occupy * LBAS_PER_LOCATION;
-
 	switch (type) {
 	case MetadataType::WAL:
 		if (location >= metadata->write_ahead_log.location) {
-			metadata->write_ahead_log.location = location + lba_occupy;
+			metadata->write_ahead_log.location = location + nr_lbas;
 			write = true;
 		}
 		break;
 	case MetadataType::TEMPORARY:
 		if (location >= metadata->temporary.location) {
-			metadata->temporary.location = location + lba_occupy;
+			metadata->temporary.location = location + nr_lbas;
 			write = true;
 		}
 		break;
 	case MetadataType::DATABASE:
 		if (location >= metadata->database.location) {
-			metadata->database.location = location + lba_occupy;
+			metadata->database.location = location + nr_lbas;
 			write = true;
 		}
 		break;
@@ -278,7 +291,7 @@ uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, string filename, idx_t l
 	// otherwise increase size + update mapping to temp files for temp type
 	uint64_t lba {};
 
-	uint64_t location_lba_position = LBAS_PER_LOCATION * location;
+	uint64_t location_lba_position = location / NVME_BLOCK_SIZE;
 
 	switch (type) {
 	case MetadataType::WAL:
@@ -330,6 +343,38 @@ uint64_t NvmeFileSystemProxy::GetStartLBA(MetadataType type, string filename) {
 	}
 
 	return lba;
+}
+
+uint64_t NvmeFileSystemProxy::GetLocationLBA(MetadataType type, string filename) {
+	uint64_t lba {};
+
+	switch (type) {
+	case MetadataType::WAL:
+		lba = metadata->write_ahead_log.location;
+		break;
+	case MetadataType::TEMPORARY:
+		throw NotImplementedException("GetLocationLBA for temp not implemented");
+		break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.location;
+		break;
+	default:
+		throw InvalidInputException("no such metadatatype");
+	}
+
+	return lba;
+}
+
+int64_t NvmeFileSystemProxy::GetFileSize(FileHandle &handle) {
+
+	D_ASSERT(this->metadata);
+
+	MetadataType type = GetMetadataType(handle.path);
+	uint64_t start_lba = GetStartLBA(type, handle.path);
+	uint64_t location_lba = GetLocationLBA(type, handle.path);
+
+	return (location_lba - start_lba) *
+	       NVME_BLOCK_SIZE; // TODO: NVME_BLOCK_SIZE should be changed. We should get it from the filehandle
 }
 
 } // namespace duckdb

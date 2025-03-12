@@ -10,4 +10,7 @@ include extension-ci-tools/makefiles/duckdb_extension.Makefile
 run:
 	@./build/release/duckdb
 
+dealloc-device:
+	@sh ./scripts/dealloc_device.sh
+
 clean-run: clean release run

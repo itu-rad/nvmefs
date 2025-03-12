@@ -109,9 +109,20 @@ bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOp
 	string db_path_no_ext = StringUtil::GetFileStem(metadata->db_path);
 
 	switch (type) {
-	case DATABASE:
 	case WAL:
+		/*
+		    Intentional fall-through. Need to remove the '.wal' and db ext
+		    before evaluating if the file exists.
 
+		    Example:
+		        string filename = "test.db.wal"
+
+		        // After two calls to GetFileStem would be: "test"
+
+		*/
+		path_no_ext = StringUtil::GetFileStem(path_no_ext);
+
+	case DATABASE:
 		if (StringUtil::Equals(path_no_ext.data(), db_path_no_ext.data())) {
 			uint64_t start_lba = GetStartLBA(type, filename);
 			uint64_t location_lba = GetLocationLBA(type, filename);

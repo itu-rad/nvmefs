@@ -17,7 +17,6 @@ struct NvmeCmdContext {
 };
 
 typedef void *nvme_buf_ptr;
-typedef NvmeFileHandle MetadataFileHandle;
 
 class NvmeFileHandle : public FileHandle {
 	friend class NvmeFileSystem;
@@ -55,6 +54,7 @@ protected:
 	uint8_t placement_identifier_count;
 };
 
+typedef NvmeFileHandle MetadataFileHandle;
 class NvmeFileSystemProxy;
 class NvmeFileSystem : public FileSystem {
 	friend class NvmeFileSystemProxy;

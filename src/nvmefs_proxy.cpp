@@ -113,7 +113,12 @@ bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOp
 	case WAL:
 
 		if (StringUtil::Equals(path_no_ext.data(), db_path_no_ext.data())) {
-			exists = true;
+			uint64_t start_lba = GetStartLBA(type, filename);
+			uint64_t location_lba = GetLocationLBA(type, filename);
+
+			if ((location_lba - start_lba) > 0) {
+				exists = true;
+			}
 		} else {
 			throw IOException("Not possible to have multiple databases");
 		}

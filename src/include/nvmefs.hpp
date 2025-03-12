@@ -33,6 +33,7 @@ public:
 	int64_t Read(void *buffer, idx_t nr_bytes);
 	int64_t Write(void *buffer, idx_t nr_bytes);
 	idx_t GetFileSize();
+	void Sync();
 
 protected:
 	unique_ptr<NvmeCmdContext> PrepareWriteCommand(int64_t nr_bytes);

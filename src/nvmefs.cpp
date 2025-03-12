@@ -57,6 +57,10 @@ idx_t NvmeFileHandle::GetFileSize() {
 	return file_system.GetFileSize(*this);
 }
 
+void NvmeFileHandle::Sync() {
+	file_system.FileSync(*this);
+}
+
 /// @brief Calculates the amount of LBAs required to store the given number of bytes
 /// @param lba_size The size of a single LBA
 /// @param nr_bytes The number of bytes to store

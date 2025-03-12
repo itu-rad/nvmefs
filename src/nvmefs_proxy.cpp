@@ -179,7 +179,7 @@ void NvmeFileSystemProxy::InitializeMetadata(FileHandle &handle, string path) {
 
 	unique_ptr<MetadataFileHandle> fh = fs->OpenMetadataFile(handle, NVME_GLOBAL_METADATA_PATH, flags);
 
-	WriteMetadata(fh, global.get());
+	WriteMetadata(*fh.get(), global.get());
 
 	metadata = std::move(global);
 }
@@ -254,7 +254,7 @@ void NvmeFileSystemProxy::UpdateMetadata(FileHandle &handle, uint64_t location, 
 	if (write) {
 		FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
 		unique_ptr<MetadataFileHandle> fh = fs->OpenMetadataFile(handle, NVME_GLOBAL_METADATA_PATH, flags);
-		WriteMetadata(fh.get(), metadata.get());
+		WriteMetadata(*fh, metadata.get());
 	}
 }
 

@@ -53,6 +53,10 @@ void NvmeFileHandle::Write(void *buffer, idx_t nr_bytes, idx_t location) {
 	file_system.Write(*this, buffer, nr_bytes, location);
 }
 
+idx_t NvmeFileHandle::GetFileSize() {
+	return file_system.GetFileSize(*this);
+}
+
 /// @brief Calculates the amount of LBAs required to store the given number of bytes
 /// @param lba_size The size of a single LBA
 /// @param nr_bytes The number of bytes to store

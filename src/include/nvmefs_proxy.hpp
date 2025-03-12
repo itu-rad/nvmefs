@@ -15,7 +15,8 @@ namespace duckdb {
 // TODO: Use NVME_PREFIX_PATH instead of hardcode 'nvmefs://'
 const std::string NVME_GLOBAL_METADATA_PATH = "nvmefs://.global_metadata";
 // TODO: Do not use magic constants here. Possibly get both from configuration.
-constexpr uint64_t LBAS_PER_LOCATION = DUCKDB_BLOCK_ALLOC_SIZE / 4096;
+constexpr uint64_t NVME_BLOCK_SIZE = 4096;
+constexpr uint64_t LBAS_PER_LOCATION = DUCKDB_BLOCK_ALLOC_SIZE / NVME_BLOCK_SIZE;
 
 enum MetadataType { DATABASE, WAL, TEMPORARY };
 
@@ -57,6 +58,7 @@ public:
 	int64_t Write(FileHandle &handle, void *buffer, int64_t nr_bytes);
 	bool CanHandleFile(const string &fpath) override;
 	bool FileExists(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
+	int64_t GetFileSize(FileHandle &handle) override;
 
 	string GetName() const {
 		return "NvmeFileSystemProxy";
@@ -71,6 +73,7 @@ private:
 	MetadataType GetMetadataType(string path);
 	uint64_t GetLBA(MetadataType type, string filename, idx_t location);
 	uint64_t GetStartLBA(MetadataType type, string filename);
+	uint64_t GetLocationLBA(MetadataType type, string filename);
 
 private:
 	Allocator &allocator;

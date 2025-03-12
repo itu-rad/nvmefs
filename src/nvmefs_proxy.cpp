@@ -332,4 +332,36 @@ uint64_t NvmeFileSystemProxy::GetStartLBA(MetadataType type, string filename) {
 	return lba;
 }
 
+uint64_t NvmeFileSystemProxy::GetLocationLBA(MetadataType type, string filename) {
+	uint64_t lba {};
+
+	switch (type) {
+	case MetadataType::WAL:
+		lba = metadata->write_ahead_log.location;
+		break;
+	case MetadataType::TEMPORARY:
+		throw NotImplementedException("GetLocationLBA for temp not implemented");
+		break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.location;
+		break;
+	default:
+		throw InvalidInputException("no such metadatatype");
+	}
+
+	return lba;
+}
+
+int64_t NvmeFileSystemProxy::GetFileSize(FileHandle &handle) {
+
+	D_ASSERT(this->metadata);
+
+	MetadataType type = GetMetadataType(handle.path);
+	uint64_t start_lba = GetStartLBA(type, handle.path);
+	uint64_t location_lba = GetLocationLBA(type, handle.path);
+
+	return (location_lba - start_lba) *
+	       NVME_BLOCK_SIZE; // TODO: NVME_BLOCK_SIZE should be changed. We should get it from the filehandle
+}
+
 } // namespace duckdb

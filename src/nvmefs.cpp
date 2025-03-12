@@ -32,6 +32,7 @@ NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t pli
 
 	uint16_t phid = ruhs->desc[plid_idx].pi;
 
+	this->placement_identifier_count = plid_count;
 	this->placement_identifier = phid << 16;
 
 	xnvme_buf_free(device, ruhs);
@@ -142,6 +143,22 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 
 	unique_ptr<NvmeFileHandle> file_handler =
 	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, flags);
+
+	return std::move(file_handler);
+}
+
+unique_ptr<FileHandle> NvmeFileSystem::OpenMetadataFile(FileHandle &handle, string path) {
+
+	// Get FDP placement identifier specifically for metadata
+	uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
+
+	// Cast handle to NvmeFileHandle to get access to specical context
+	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
+	xnvme_dev *device = fh.device;
+	uint8_t plid_count = fh.placement_identifier_count;
+
+	unique_ptr<NvmeFileHandle> file_handler =
+	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, nullptr);
 
 	return std::move(file_handler);
 }

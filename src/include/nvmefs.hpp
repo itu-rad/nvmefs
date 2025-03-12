@@ -51,6 +51,7 @@ protected:
 protected:
 	xnvme_dev *device;
 	uint32_t placement_identifier;
+	uint8_t placement_identifier_count;
 };
 
 class NvmeFileSystemProxy;
@@ -61,6 +62,7 @@ public:
 	NvmeFileSystem(NvmeFileSystemProxy &proxy_ref);
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
 	                                optional_ptr<FileOpener> opener = nullptr) override;
+
 	void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	bool CanHandleFile(const string &fpath) override;
@@ -72,6 +74,12 @@ public:
 protected:
 	uint8_t GetPlacementIdentifierIndexOrDefault(const string &path);
 	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location);
+
+	/// @brief Opens a file handle for metadata in the context of a given file handle
+	/// @param handle The file handle to get context from
+	/// @param path The "internal" metadata file path
+	/// @return FileHandle specifically for the metadata section of the device
+	unique_ptr<FileHandle> OpenMetadataFile(FileHandle &handle, string path);
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;

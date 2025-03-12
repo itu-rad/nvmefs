@@ -17,6 +17,7 @@ struct NvmeCmdContext {
 };
 
 typedef void *nvme_buf_ptr;
+typedef NvmeFileHandle MetadataFileHandle;
 
 class NvmeFileHandle : public FileHandle {
 	friend class NvmeFileSystem;
@@ -79,7 +80,7 @@ protected:
 	/// @param handle The file handle to get context from
 	/// @param path The "internal" metadata file path
 	/// @return FileHandle specifically for the metadata section of the device
-	unique_ptr<FileHandle> OpenMetadataFile(FileHandle &handle, string path);
+	unique_ptr<MetadataFileHandle> OpenMetadataFile(FileHandle &handle, string path, FileOpenFlags flags);
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;

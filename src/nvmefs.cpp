@@ -147,7 +147,7 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 	return std::move(file_handler);
 }
 
-unique_ptr<FileHandle> NvmeFileSystem::OpenMetadataFile(FileHandle &handle, string path) {
+unique_ptr<MetadataFileHandle> NvmeFileSystem::OpenMetadataFile(FileHandle &handle, string path, FileOpenFlags flags) {
 
 	// Get FDP placement identifier specifically for metadata
 	uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
@@ -158,9 +158,9 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenMetadataFile(FileHandle &handle, stri
 	uint8_t plid_count = fh.placement_identifier_count;
 
 	unique_ptr<NvmeFileHandle> file_handler =
-	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, nullptr);
+	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, flags);
 
-	return std::move(file_handler);
+	return std::move(file_handler->Cast<MetadataFileHandle>());
 }
 
 /*

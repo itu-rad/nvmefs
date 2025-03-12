@@ -85,6 +85,7 @@ int64_t NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_
 
 	int64_t lbas_written = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
 
+	PrintDebug("Number of bytes: " + std::to_string(nr_bytes) + "\n");
 	UpdateMetadata(handle, lba_start_location, lbas_written, meta_type);
 	PrintFullMetadata(*metadata);
 
@@ -240,27 +241,22 @@ void NvmeFileSystemProxy::WriteMetadata(MetadataFileHandle &handle, GlobalMetada
 void NvmeFileSystemProxy::UpdateMetadata(FileHandle &handle, uint64_t location, uint64_t nr_lbas, MetadataType type) {
 	bool write = false;
 
-	// Number of locations that the number of LBAs will occupy
-	uint64_t occupy = (nr_lbas + LBAS_PER_LOCATION - 1) / LBAS_PER_LOCATION;
-	// Translate location count to LBAs
-	uint64_t lba_occupy = occupy * LBAS_PER_LOCATION;
-
 	switch (type) {
 	case MetadataType::WAL:
 		if (location >= metadata->write_ahead_log.location) {
-			metadata->write_ahead_log.location = location + lba_occupy;
+			metadata->write_ahead_log.location = location + nr_lbas;
 			write = true;
 		}
 		break;
 	case MetadataType::TEMPORARY:
 		if (location >= metadata->temporary.location) {
-			metadata->temporary.location = location + lba_occupy;
+			metadata->temporary.location = location + nr_lbas;
 			write = true;
 		}
 		break;
 	case MetadataType::DATABASE:
 		if (location >= metadata->database.location) {
-			metadata->database.location = location + lba_occupy;
+			metadata->database.location = location + nr_lbas;
 			write = true;
 		}
 		break;
@@ -294,7 +290,7 @@ uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, string filename, idx_t l
 	// otherwise increase size + update mapping to temp files for temp type
 	uint64_t lba {};
 
-	uint64_t location_lba_position = LBAS_PER_LOCATION * location;
+	uint64_t location_lba_position = location / NVME_BLOCK_SIZE;
 
 	switch (type) {
 	case MetadataType::WAL:

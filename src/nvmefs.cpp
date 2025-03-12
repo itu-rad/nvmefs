@@ -160,7 +160,9 @@ unique_ptr<MetadataFileHandle> NvmeFileSystem::OpenMetadataFile(FileHandle &hand
 	unique_ptr<NvmeFileHandle> file_handler =
 	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, flags);
 
-	return std::move(file_handler->Cast<MetadataFileHandle>());
+	unique_ptr<MetadataFileHandle> metadata_file_handler = file_handler->Cast<MetadataFileHandle>();
+
+	return std::move(metadata_file_handler);
 }
 
 /*

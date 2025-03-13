@@ -60,6 +60,7 @@ public:
 	bool FileExists(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 	int64_t GetFileSize(FileHandle &handle) override;
 	void FileSync(FileHandle &handle) override;
+	bool OnDiskFile(FileHandle &handle) override;
 
 	string GetName() const {
 		return "NvmeFileSystemProxy";

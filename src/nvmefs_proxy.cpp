@@ -110,7 +110,7 @@ bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOp
 	string db_path_no_ext = StringUtil::GetFileStem(metadata->db_path);
 
 	switch (type) {
-      
+
 	case WAL:
 		/*
 		    Intentional fall-through. Need to remove the '.wal' and db ext
@@ -375,6 +375,10 @@ int64_t NvmeFileSystemProxy::GetFileSize(FileHandle &handle) {
 
 	return (location_lba - start_lba) *
 	       NVME_BLOCK_SIZE; // TODO: NVME_BLOCK_SIZE should be changed. We should get it from the filehandle
+}
+
+void NvmeFileSystemProxy::FileSync(FileHandle &handle) {
+	// This should just be empty. We do not need to sync to disk since we write directly to disk
 }
 
 } // namespace duckdb

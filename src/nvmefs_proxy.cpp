@@ -363,9 +363,11 @@ uint64_t NvmeFileSystemProxy::GetLocationLBA(MetadataType type, string filename)
 		lba = metadata->write_ahead_log.location;
 		break;
 	case MetadataType::TEMPORARY:
-		TemporaryFileMetadata tfmeta = file_to_lba[filename];
-		// Consider temp file lba 0 to 4. end = 4. proper size of tempfile is 5 lbas, so end+1
-		lba = tfmeta.end + 1;
+		{
+			TemporaryFileMetadata tfmeta = file_to_lba[filename];
+			// Consider temp file lba 0 to 4. end = 4. proper size of tempfile is 5 lbas, so end+1
+			lba = tfmeta.end + 1;
+		}
 		break;
 	case MetadataType::DATABASE:
 		lba = metadata->database.location;

@@ -385,4 +385,15 @@ bool NvmeFileSystemProxy::OnDiskFile(FileHandle &handle) {
 	// This filesystem only interacts with the disk, hence file will always be on disk
 	return true;
 }
+
+bool NvmeFileSystemProxy::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
+
+	if (!metadata || !TryLoadMetadata(opener)) {
+		return false;
+	}
+
+	// We do not need to look further. The directory is created when the metadata is created
+	return true;
+}
+
 } // namespace duckdb

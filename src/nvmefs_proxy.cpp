@@ -305,14 +305,16 @@ uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, string filename, idx_t l
 		}
 		break;
 	case MetadataType::TEMPORARY:
-		TemporaryFileMetadata tfmeta;
-		if (file_to_lba.count(filename)) {
-			tfmeta = file_to_lba[filename];
-			lba = tfmeta.start + location_lba_position;
-		} else {
-			lba = metadata->temporary.location;
-			tfmeta = {.start=lba, .end=lba};
-			file_to_lba[filename] = tfmeta;
+		{
+			TemporaryFileMetadata tfmeta;
+			if (file_to_lba.count(filename)) {
+				tfmeta = file_to_lba[filename];
+				lba = tfmeta.start + location_lba_position;
+			} else {
+				lba = metadata->temporary.location;
+				tfmeta = {.start=lba, .end=lba};
+				file_to_lba[filename] = tfmeta;
+			}
 		}
 		break;
 	case MetadataType::DATABASE:

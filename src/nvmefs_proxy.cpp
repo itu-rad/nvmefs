@@ -381,4 +381,8 @@ void NvmeFileSystemProxy::FileSync(FileHandle &handle) {
 	// This should just be empty. We do not need to sync to disk since we write directly to disk
 }
 
+bool NvmeFileSystemProxy::OnDiskFile(FileHandle &handle) {
+	// This filesystem only interacts with the disk, hence file will always be on disk
+	return true;
+}
 } // namespace duckdb

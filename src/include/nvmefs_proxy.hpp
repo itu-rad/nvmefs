@@ -41,6 +41,11 @@ struct GlobalMetadata {
 	Metadata temporary;
 };
 
+struct TemporaryFileMetadata {
+	uint64_t start;
+	uint64_t end;
+};
+
 class NvmeFileSystem;
 class NvmeFileHandle;
 typedef NvmeFileHandle MetadataFileHandle;
@@ -82,7 +87,7 @@ private:
 	Allocator &allocator;
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<NvmeFileSystem> fs;
-	map<std::string, uint64_t> file_to_lba;
+	map<std::string, TemporaryFileMetadata> file_to_lba;
 };
 
 } // namespace duckdb

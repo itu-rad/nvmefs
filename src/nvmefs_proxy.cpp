@@ -253,6 +253,8 @@ void NvmeFileSystemProxy::UpdateMetadata(FileHandle &handle, uint64_t location, 
 		if (location >= metadata->temporary.location) {
 			metadata->temporary.location = location + nr_lbas;
 			write = true;
+			TemporaryFileMetadata tfmeta_tmp = file_to_lba[handle.path];
+			file_to_lba[handle.path] = {tfmeta_tmp.start, metadata->temporary.location-1};
 		}
 		break;
 	case MetadataType::DATABASE:
@@ -303,11 +305,16 @@ uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, string filename, idx_t l
 		}
 		break;
 	case MetadataType::TEMPORARY:
-		if (file_to_lba.count(filename)) {
-			lba = file_to_lba[filename] + location_lba_position;
-		} else {
-			lba = metadata->temporary.location;
-			file_to_lba[filename] = lba;
+		{
+			TemporaryFileMetadata tfmeta;
+			if (file_to_lba.count(filename)) {
+				tfmeta = file_to_lba[filename];
+				lba = tfmeta.start + location_lba_position;
+			} else {
+				lba = metadata->temporary.location;
+				tfmeta = {.start=lba, .end=lba};
+				file_to_lba[filename] = tfmeta;
+			}
 		}
 		break;
 	case MetadataType::DATABASE:
@@ -330,9 +337,12 @@ uint64_t NvmeFileSystemProxy::GetStartLBA(MetadataType type, string filename) {
 		break;
 	case MetadataType::TEMPORARY:
 		if (file_to_lba.count(filename)) {
-			lba = file_to_lba[filename];
+			TemporaryFileMetadata tfmeta = file_to_lba[filename];
+			lba = tfmeta.start;
 		} else {
 			lba = metadata->temporary.location;
+			TemporaryFileMetadata tfmeta = {.start=lba, .end=lba};
+			file_to_lba[filename] = tfmeta;
 		}
 		break;
 	case MetadataType::DATABASE:
@@ -353,7 +363,11 @@ uint64_t NvmeFileSystemProxy::GetLocationLBA(MetadataType type, string filename)
 		lba = metadata->write_ahead_log.location;
 		break;
 	case MetadataType::TEMPORARY:
-		throw NotImplementedException("GetLocationLBA for temp not implemented");
+		{
+			TemporaryFileMetadata tfmeta = file_to_lba[filename];
+			// Consider temp file lba 0 to 4. end = 4. proper size of tempfile is 5 lbas, so end+1
+			lba = tfmeta.end + 1;
+		}
 		break;
 	case MetadataType::DATABASE:
 		lba = metadata->database.location;

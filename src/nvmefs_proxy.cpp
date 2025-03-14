@@ -410,4 +410,13 @@ bool NvmeFileSystemProxy::DirectoryExists(const string &directory, optional_ptr<
 	return true;
 }
 
+void NvmeFileSystemProxy::RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener) {
+	// Only supported "directory" is the temporary directory
+	if (GetMetadataType(directory) == MetadataType::TEMPORARY)
+		file_to_lba.clear();
+	} else {
+		throw IOException("Cannot delete unknown directory type");
+	}
+}
+
 } // namespace duckdb

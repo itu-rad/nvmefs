@@ -67,6 +67,8 @@ public:
 	void FileSync(FileHandle &handle) override;
 	bool OnDiskFile(FileHandle &handle) override;
 	bool DirectoryExists(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
+	void RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
+
 
 	string GetName() const {
 		return "NvmeFileSystemProxy";

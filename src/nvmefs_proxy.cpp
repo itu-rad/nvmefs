@@ -419,4 +419,12 @@ void NvmeFileSystemProxy::RemoveDirectory(const string &directory, optional_ptr<
 	}
 }
 
+void NvmeFileSystemProxy::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
+	if (!metadata || !TryLoadMetadata(opener)) {
+		throw IOException("Not possible to create directory without an database");
+	}
+	// All necessary directories are already create on the device if an database exists.
+	// i.e. the temporary directory
+}
+
 } // namespace duckdb

@@ -410,4 +410,42 @@ bool NvmeFileSystemProxy::DirectoryExists(const string &directory, optional_ptr<
 	return true;
 }
 
+void NvmeFileSystemProxy::RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener) {
+	// Only supported "directory" is the temporary directory
+	if (GetMetadataType(directory) == MetadataType::TEMPORARY)
+		file_to_lba.clear();
+	} else {
+		throw IOException("Cannot delete unknown directory type");
+	}
+}
+
+void NvmeFileSystemProxy::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
+	if (!metadata || !TryLoadMetadata(opener)) {
+		throw IOException("Not possible to create directory without an database");
+	}
+	// All necessary directories are already create on the device if an database exists.
+	// i.e. the temporary directory
+}
+
+void NvmeFileSystemProxy::RemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
+	MetadataType type = GetMetadataType(filename);
+
+	switch (type)
+	{
+	case WAL:
+		// Reset the location poitner (next lba to write to) to the start effectively removing the wal
+		metadata->write_ahead_log.location = metadata->write_ahead_log.start;
+		break;
+
+	case TEMPORARY:
+		// TODO: how do we determine if we need to move the temp metadata location pointer
+		// and what about fragmentation? is it even possible to use ringbuffer technique?
+		file_to_lba.erase(filename);
+		break;
+	default:
+		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
+		break;
+	}
+}
+
 } // namespace duckdb

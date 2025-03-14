@@ -4,6 +4,10 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 EXT_NAME=nvmefs
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
+ifeq ($(BUILD_PYTHON),1)
+	EXT_FLAGS=-DBUILD_PYTHON=1
+endif
+
 # Include the Makefile from extension-ci-tools
 include extension-ci-tools/makefiles/duckdb_extension.Makefile
 

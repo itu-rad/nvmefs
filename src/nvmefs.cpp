@@ -226,6 +226,7 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 	    xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas, buffer, nullptr);
 	if (err) {
 		// TODO: Handle error
+		xnvme_cli_perr("xnvme_nvm_write()", err);
 		throw IOException("Error writing to NVMe device");
 	}
 

@@ -196,7 +196,7 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 
 	if (nr_bytes <= 4096) {
-		nr_bytes = 4096 * 2;
+		nr_bytes = 4096 * 64;
 	}
 
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand(nr_bytes);
@@ -222,7 +222,7 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 
 	if (nr_bytes <= 4096) {
-		nr_bytes = 4096 * 2;
+		nr_bytes = 4096 * 64;
 	}
 
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand(nr_bytes);

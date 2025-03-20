@@ -216,14 +216,22 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 	WriteInternal(handle, buffer, nr_bytes, location);
 }
 
-uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location,
+                                       idx_t in_block_offset) {
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand(nr_bytes);
 	D_ASSERT(nvme_ctx->number_of_lbas > 0);
+	D_ASSERT(nvme_ctx->number_of_lbas > 1 &&
+	         in_block_offset == 0); // We only support in-block writing of a single block... for now
 
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
-	memcpy(dev_buffer, buffer, nr_bytes);
+	if (in_block_offset > 0) {
+		D_ASSERT(in_block_offset + nr_bytes < NVME_BLOCK_SIZE); // Be sure that the write fits within a block
+		Read(handle, dev_buffer, nvme_ctx->number_of_lbas, location);
+	}
+
+	memcpy(dev_buffer, buffer + in_block_offset, nr_bytes);
 
 	int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1,
 	                          dev_buffer, nullptr);

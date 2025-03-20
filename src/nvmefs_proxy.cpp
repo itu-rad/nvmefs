@@ -212,7 +212,7 @@ unique_ptr<GlobalMetadata> NvmeFileSystemProxy::ReadMetadata(FileHandle &handle)
 
 	fs->Read(*fh, buffer, bytes_to_read, NVMEFS_METADATA_LOCATION);
 
-	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>();
+	unique_ptr<GlobalMetadata> global = nullptr;
 
 	// Check magic bytes
 	if (memcmp(buffer, MAGIC_BYTES, sizeof(MAGIC_BYTES)) == 0) {

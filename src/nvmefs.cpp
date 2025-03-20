@@ -193,22 +193,7 @@ uint8_t NvmeFileSystem::GetPlacementIdentifierIndexOrDefault(const string &path)
 }
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
-
-	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand(nr_bytes);
-	D_ASSERT(nvme_ctx->number_of_lbas > 0);
-
-	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
-
-	int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1, dev_buffer,
-	                         nullptr);
-	if (err) {
-		// TODO: Handle error
-		throw IOException("Error reading from NVMe device");
-	}
-
-	memcpy(buffer, dev_buffer, nr_bytes);
-	nvme_handle.FreeDeviceBuffer(dev_buffer);
+	ReadInternal(handle, buffer, nr_bytes, location, 0);
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
@@ -233,6 +218,31 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 		throw IOException("Error writing to NVMe device");
 	}
 
+	nvme_handle.FreeDeviceBuffer(dev_buffer);
+
+	return nvme_ctx->number_of_lbas;
+}
+
+uint64_t NvmeFileSystem::ReadInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
+                                      idx_t in_block_offset) {
+
+	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
+
+	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand(nr_bytes);
+	D_ASSERT(nvme_ctx->number_of_lbas > 0);
+
+	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
+
+	int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location_lba, nvme_ctx->number_of_lbas - 1,
+	                         dev_buffer, nullptr);
+	if (err) {
+		// TODO: Handle error
+		throw IOException("Error reading from NVMe device");
+	}
+
+	// Copy the data from the device buffer to the output buffer. We apply the offset, to read from the specific
+	// location within the block and only return that particular data
+	memcpy(buffer, dev_buffer + in_block_offset, nr_bytes);
 	nvme_handle.FreeDeviceBuffer(dev_buffer);
 
 	return nvme_ctx->number_of_lbas;

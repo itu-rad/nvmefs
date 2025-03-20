@@ -195,10 +195,6 @@ uint8_t NvmeFileSystem::GetPlacementIdentifierIndexOrDefault(const string &path)
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 
-	if (nr_bytes <= 4096) {
-		nr_bytes = 4096 * 64;
-	}
-
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand(nr_bytes);
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
 
@@ -220,10 +216,6 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 
 uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
-
-	if (nr_bytes <= 4096) {
-		nr_bytes = 4096 * 64;
-	}
 
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand(nr_bytes);
 

@@ -80,7 +80,7 @@ public:
 
 protected:
 	uint8_t GetPlacementIdentifierIndexOrDefault(const string &path);
-	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location);
+	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba);
 
 	/// @brief Opens a file handle for metadata in the context of a given file handle
 	/// @param handle The file handle to get context from

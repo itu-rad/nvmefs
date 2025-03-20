@@ -216,7 +216,7 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 	WriteInternal(handle, buffer, nr_bytes, location);
 }
 
-uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba) {
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand(nr_bytes);
@@ -225,7 +225,7 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
 	memcpy(dev_buffer, buffer, nr_bytes);
 
-	int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1,
+	int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location_lba, nvme_ctx->number_of_lbas - 1,
 	                          dev_buffer, nullptr);
 	if (err) {
 		// TODO: Handle error

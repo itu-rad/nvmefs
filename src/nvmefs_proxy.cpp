@@ -40,7 +40,7 @@ unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpe
 
 	unique_ptr<FileHandle> handle = fs->OpenFile(path, flags, opener);
 
-	if (!metadata || !TryLoadMetadata(opener)) {
+	if (!TryLoadMetadata(opener)) {
 		if (GetMetadataType(path) != MetadataType::DATABASE) {
 			throw IOException("No attached database");
 		} else {
@@ -100,7 +100,7 @@ bool NvmeFileSystemProxy::FileExists(const string &filename, optional_ptr<FileOp
 
 	// TODO: Add statement to check if the file is a db file in order to init/load metadata
 	//		 in this function
-	if (!metadata || !TryLoadMetadata(opener)) {
+	if (!TryLoadMetadata(opener)) {
 		return false;
 	}
 
@@ -254,7 +254,7 @@ void NvmeFileSystemProxy::UpdateMetadata(FileHandle &handle, uint64_t location, 
 			metadata->temporary.location = location + nr_lbas;
 			write = true;
 			TemporaryFileMetadata tfmeta_tmp = file_to_lba[handle.path];
-			file_to_lba[handle.path] = {tfmeta_tmp.start, metadata->temporary.location-1};
+			file_to_lba[handle.path] = {tfmeta_tmp.start, metadata->temporary.location - 1};
 		}
 		break;
 	case MetadataType::DATABASE:
@@ -304,19 +304,17 @@ uint64_t NvmeFileSystemProxy::GetLBA(MetadataType type, string filename, idx_t l
 			lba = metadata->write_ahead_log.location;
 		}
 		break;
-	case MetadataType::TEMPORARY:
-		{
-			TemporaryFileMetadata tfmeta;
-			if (file_to_lba.count(filename)) {
-				tfmeta = file_to_lba[filename];
-				lba = tfmeta.start + location_lba_position;
-			} else {
-				lba = metadata->temporary.location;
-				tfmeta = {.start=lba, .end=lba};
-				file_to_lba[filename] = tfmeta;
-			}
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta;
+		if (file_to_lba.count(filename)) {
+			tfmeta = file_to_lba[filename];
+			lba = tfmeta.start + location_lba_position;
+		} else {
+			lba = metadata->temporary.location;
+			tfmeta = {.start = lba, .end = lba};
+			file_to_lba[filename] = tfmeta;
 		}
-		break;
+	} break;
 	case MetadataType::DATABASE:
 		lba = metadata->database.start + location_lba_position;
 		break;
@@ -341,7 +339,7 @@ uint64_t NvmeFileSystemProxy::GetStartLBA(MetadataType type, string filename) {
 			lba = tfmeta.start;
 		} else {
 			lba = metadata->temporary.location;
-			TemporaryFileMetadata tfmeta = {.start=lba, .end=lba};
+			TemporaryFileMetadata tfmeta = {.start = lba, .end = lba};
 			file_to_lba[filename] = tfmeta;
 		}
 		break;
@@ -362,13 +360,11 @@ uint64_t NvmeFileSystemProxy::GetLocationLBA(MetadataType type, string filename)
 	case MetadataType::WAL:
 		lba = metadata->write_ahead_log.location;
 		break;
-	case MetadataType::TEMPORARY:
-		{
-			TemporaryFileMetadata tfmeta = file_to_lba[filename];
-			// Consider temp file lba 0 to 4. end = 4. proper size of tempfile is 5 lbas, so end+1
-			lba = tfmeta.end + 1;
-		}
-		break;
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_lba[filename];
+		// Consider temp file lba 0 to 4. end = 4. proper size of tempfile is 5 lbas, so end+1
+		lba = tfmeta.end + 1;
+	} break;
 	case MetadataType::DATABASE:
 		lba = metadata->database.location;
 		break;
@@ -402,7 +398,7 @@ bool NvmeFileSystemProxy::OnDiskFile(FileHandle &handle) {
 
 bool NvmeFileSystemProxy::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
 
-	if (!metadata || !TryLoadMetadata(opener)) {
+	if (!TryLoadMetadata(opener)) {
 		return false;
 	}
 
@@ -420,7 +416,7 @@ void NvmeFileSystemProxy::RemoveDirectory(const string &directory, optional_ptr<
 }
 
 void NvmeFileSystemProxy::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
-	if (!metadata || !TryLoadMetadata(opener)) {
+	if (!TryLoadMetadata(opener)) {
 		throw IOException("Not possible to create directory without an database");
 	}
 	// All necessary directories are already create on the device if an database exists.
@@ -430,8 +426,7 @@ void NvmeFileSystemProxy::CreateDirectory(const string &directory, optional_ptr<
 void NvmeFileSystemProxy::RemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
 	MetadataType type = GetMetadataType(filename);
 
-	switch (type)
-	{
+	switch (type) {
 	case WAL:
 		// Reset the location poitner (next lba to write to) to the start effectively removing the wal
 		metadata->write_ahead_log.location = metadata->write_ahead_log.start;

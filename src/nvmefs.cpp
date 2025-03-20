@@ -196,10 +196,12 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand(nr_bytes);
+	D_ASSERT(nvme_ctx->number_of_lbas > 0);
+
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
 
 	int err =
-	    xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas, buffer, nullptr);
+	    xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1, buffer, nullptr);
 	if (err) {
 		// TODO: Handle error
 		throw IOException("Error reading from NVMe device");
@@ -218,13 +220,13 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand(nr_bytes);
+	D_ASSERT(nvme_ctx->number_of_lbas > 0);
 
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
-
 	memcpy(dev_buffer, buffer, nr_bytes);
 
-	int err =
-	    xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas, buffer, nullptr);
+	int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1, buffer,
+	                          nullptr);
 	if (err) {
 		// TODO: Handle error
 		xnvme_cli_perr("xnvme_nvm_write()", err);

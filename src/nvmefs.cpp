@@ -200,8 +200,8 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
 
-	int err =
-	    xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1, buffer, nullptr);
+	int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1, dev_buffer,
+	                         nullptr);
 	if (err) {
 		// TODO: Handle error
 		throw IOException("Error reading from NVMe device");
@@ -225,8 +225,8 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
 	memcpy(dev_buffer, buffer, nr_bytes);
 
-	int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1, buffer,
-	                          nullptr);
+	int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1,
+	                          dev_buffer, nullptr);
 	if (err) {
 		// TODO: Handle error
 		xnvme_cli_perr("xnvme_nvm_write()", err);

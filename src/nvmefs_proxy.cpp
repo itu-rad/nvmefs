@@ -60,7 +60,9 @@ void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_byte
 void NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	MetadataType type = GetMetadataType(handle.path);
 	uint64_t lba_start_location = GetLBA(type, handle.path, location);
-	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
+	uint16_t in_block_offset = location % NVME_BLOCK_SIZE;
+
+	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location, in_block_offset);
 	UpdateMetadata(handle, lba_start_location, written_lbas, type);
 	PrintFullMetadata(*metadata);
 }
@@ -83,7 +85,7 @@ int64_t NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_
 	MetadataType meta_type = GetMetadataType(handle.path);
 	uint64_t lba_start_location = GetStartLBA(meta_type, handle.path);
 
-	int64_t lbas_written = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
+	int64_t lbas_written = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location, 0);
 
 	PrintDebug("Number of bytes: " + std::to_string(nr_bytes) + "\n");
 	UpdateMetadata(handle, lba_start_location, lbas_written, meta_type);

@@ -213,7 +213,7 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	// fall-back - throw away number of LBA's written
-	WriteInternal(handle, buffer, nr_bytes, location);
+	WriteInternal(handle, buffer, nr_bytes, location, 0);
 }
 
 uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location,
@@ -227,8 +227,8 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
 	if (in_block_offset > 0) {
-		D_ASSERT(in_block_offset + nr_bytes < NVME_BLOCK_SIZE); // Be sure that the write fits within a block
-		Read(handle, dev_buffer, nvme_ctx->number_of_lbas, location);
+		D_ASSERT(in_block_offset + nr_bytes < NVME_BLOCK_SIZE);       // Be sure that the write fits within a block
+		Read(handle, dev_buffer, nvme_ctx->number_of_lbas, location); // Reads the whole block
 	}
 
 	memcpy(dev_buffer, buffer + in_block_offset, nr_bytes);

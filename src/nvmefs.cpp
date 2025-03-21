@@ -243,6 +243,8 @@ uint64_t NvmeFileSystem::ReadInternal(FileHandle &handle, void *buffer, int64_t 
 
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
 
+	printf("Read with offset: %d\n", in_block_offset);
+
 	int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location_lba, nvme_ctx->number_of_lbas - 1,
 	                         dev_buffer, nullptr);
 	if (err) {

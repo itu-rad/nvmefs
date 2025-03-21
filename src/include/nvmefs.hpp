@@ -80,7 +80,8 @@ public:
 
 protected:
 	uint8_t GetPlacementIdentifierIndexOrDefault(const string &path);
-	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba);
+	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
+	                       idx_t in_block_offset);
 	uint64_t ReadInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
 	                      idx_t in_block_offset);
 

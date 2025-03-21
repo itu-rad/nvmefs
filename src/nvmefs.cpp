@@ -207,8 +207,9 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand(nr_bytes);
 	D_ASSERT(nvme_ctx->number_of_lbas > 0);
-	D_ASSERT(nvme_ctx->number_of_lbas > 1 &&
-	         in_block_offset == 0); // We only support in-block writing of a single block... for now
+	D_ASSERT((in_block_offset == 0 && nvme_ctx->number_of_lbas > 1) ||
+	         (in_block_offset >= 0 &&
+	          nvme_ctx->number_of_lbas == 1)); // We only support in-block writing of a single block... for now
 
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
 	if (in_block_offset > 0) {

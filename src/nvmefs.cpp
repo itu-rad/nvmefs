@@ -213,8 +213,7 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
 	if (in_block_offset > 0) {
-		D_ASSERT(in_block_offset + nr_bytes < NVME_BLOCK_SIZE); // Be sure that the write fits within a block
-		printf("In block offset write %d\n", in_block_offset);
+		D_ASSERT(in_block_offset + nr_bytes < NVME_BLOCK_SIZE);           // Be sure that the write fits within a block
 		Read(handle, dev_buffer, nvme_ctx->number_of_lbas, location_lba); // Reads the whole block
 	}
 
@@ -242,8 +241,6 @@ uint64_t NvmeFileSystem::ReadInternal(FileHandle &handle, void *buffer, int64_t 
 	D_ASSERT(nvme_ctx->number_of_lbas > 0);
 
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
-
-	printf("Read with offset: %d\n", in_block_offset);
 
 	int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location_lba, nvme_ctx->number_of_lbas - 1,
 	                         dev_buffer, nullptr);

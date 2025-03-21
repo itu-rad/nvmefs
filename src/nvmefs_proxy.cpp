@@ -56,6 +56,7 @@ void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_byte
 
 	// Get the offset of bytes within the block
 	int16_t in_block_offset = location % NVME_BLOCK_SIZE;
+	PrintDebug("Read with offset: " + std::to_string(in_block_offset));
 
 	fs->ReadInternal(handle, buffer, nr_bytes, lba_start_location, in_block_offset);
 }
@@ -64,6 +65,7 @@ void NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_byt
 	MetadataType type = GetMetadataType(handle.path);
 	uint64_t lba_start_location = GetLBA(type, handle.path, location);
 	uint16_t in_block_offset = location % NVME_BLOCK_SIZE;
+	PrintDebug("Write with offset: " + std::to_string(in_block_offset));
 
 	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location, in_block_offset);
 	UpdateMetadata(handle, lba_start_location, written_lbas, type);

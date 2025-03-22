@@ -52,6 +52,9 @@ unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpe
 
 void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	MetadataType type = GetMetadataType(handle.path);
+	int64_t cursor_offset = fs->SeekPosition(handle);
+	location += cursor_offset;
+
 	uint64_t lba_start_location = GetLBA(type, handle.path, location);
 
 	// Get the offset of bytes within the block
@@ -63,6 +66,9 @@ void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_byte
 
 void NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	MetadataType type = GetMetadataType(handle.path);
+	int64_t cursor_offset = fs->SeekPosition(handle);
+	location += cursor_offset;
+
 	uint64_t lba_start_location = GetLBA(type, handle.path, location);
 	uint16_t in_block_offset = location % NVME_BLOCK_SIZE;
 	PrintDebug("Write with offset: " + std::to_string(in_block_offset));

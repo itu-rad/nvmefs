@@ -49,6 +49,15 @@ protected:
 	/// @param buffer The buffer to free
 	void FreeDeviceBuffer(nvme_buf_ptr buffer);
 
+	/// @brief Set the cursor of the current file handle. This new position will work as an offset being applied for
+	/// future read and write operations
+	/// @param location The location to set the file pointer to
+	void SetFilePointer(idx_t location);
+
+	/// @brief Gets the current location(in bytes) of the file pointer
+	/// @return The current location of the file pointer in bytes
+	idx_t GetFilePointer();
+
 	void Close() {
 	}
 
@@ -59,6 +68,7 @@ protected:
 
 private:
 	bool internal_fileHandle; // Means that this file handle is used in the context of another file handle
+	uint64_t cursor_offset;
 };
 
 class NvmeFileSystemProxy;

@@ -17,6 +17,7 @@ NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t pli
     : FileHandle(file_system, path, flags) {
 	// Get placemenet handle indentifier and create placement idenetifier
 	// Inspiration: https://github.com/xnvme/xnvme/blob/be52a634c139647b14940ba8a3ff254d6b1ca8c4/tools/xnvme.c#L833
+	this->cursor_offset = 0;
 	this->device = device;
 	this->internal_fileHandle = internal_fileHandle;
 
@@ -59,6 +60,14 @@ idx_t NvmeFileHandle::GetFileSize() {
 
 void NvmeFileHandle::Sync() {
 	file_system.FileSync(*this);
+}
+
+void NvmeFileHandle::SetFilePointer(idx_t location) {
+	cursor_offset = location;
+}
+
+idx_t NvmeFileHandle::GetFilePointer() {
+	return cursor_offset;
 }
 
 /// @brief Calculates the amount of LBAs required to store the given number of bytes

@@ -482,10 +482,9 @@ void NvmeFileSystemProxy::Seek(FileHandle &handle, idx_t location) {
 	D_ASSERT(location % NVME_BLOCK_SIZE == 0);
 	auto type = GetMetadataType(handle.path);
 
-	uint64_t start = GetStartLBA(type, handle.path) * NVME_BLOCK_SIZE;
-	uint64_t end = ((GetEndLBA(type, handle.path) + 1) * NVME_BLOCK_SIZE) - 1;
+	uint64_t end = (GetEndLBA(type, handle.path) - GetStartLBA(type, handle.path)) * NVME_BLOCK_SIZE;
 
-	if (location < start || location > end) {
+	if (location > end) {
 		throw IOException("Seek location out of bounds");
 	}
 

@@ -32,6 +32,7 @@ public:
 	void Write(void *buffer, idx_t nr_bytes, idx_t location);
 	int64_t Read(void *buffer, idx_t nr_bytes);
 	int64_t Write(void *buffer, idx_t nr_bytes);
+
 	idx_t GetFileSize();
 	void Sync();
 
@@ -83,6 +84,8 @@ public:
 	void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	bool CanHandleFile(const string &fpath) override;
+	void Seek(FileHandle &handle, idx_t location) override;
+	idx_t SeekPosition(FileHandle &handle) override;
 
 	string GetName() const {
 		return "NvmeFileSystem";

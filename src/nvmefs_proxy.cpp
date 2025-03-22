@@ -382,6 +382,27 @@ uint64_t NvmeFileSystemProxy::GetLocationLBA(MetadataType type, string filename)
 	return lba;
 }
 
+uint64_t NvmeFileSystemProxy::GetEndLBA(MetadataType type, string filename) {
+	uint64_t lba {};
+
+	switch (type) {
+	case MetadataType::WAL:
+		lba = metadata->write_ahead_log.end;
+		break;
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_lba[filename];
+		lba = tfmeta.end;
+	} break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.end;
+		break;
+	default:
+		throw InvalidInputException("no such metadatatype");
+	}
+
+	return lba;
+}
+
 int64_t NvmeFileSystemProxy::GetFileSize(FileHandle &handle) {
 
 	D_ASSERT(this->metadata);
@@ -448,6 +469,26 @@ void NvmeFileSystemProxy::RemoveFile(const string &filename, optional_ptr<FileOp
 		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
 		break;
 	}
+}
+
+void NvmeFileSystemProxy::Seek(FileHandle &handle, idx_t location) {
+
+	D_ASSERT(location % NVME_BLOCK_SIZE == 0);
+	auto type = GetMetadataType(handle.path);
+
+	uint64_t start = GetStartLBA(type, handle.path) * NVME_BLOCK_SIZE;
+	uint64_t end = ((GetEndLBA(type, handle.path) + 1) * NVME_BLOCK_SIZE) - 1;
+
+	if (location < start || location > end) {
+		throw IOException("Seek location out of bounds");
+	}
+
+	fs->Seek(handle, location);
+}
+
+idx_t NvmeFileSystemProxy::SeekPosition(FileHandle &handle) {
+
+	return fs->SeekPosition(handle);
 }
 
 } // namespace duckdb

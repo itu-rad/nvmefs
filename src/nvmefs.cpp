@@ -270,4 +270,12 @@ bool NvmeFileSystem::CanHandleFile(const string &path) {
 	return StringUtil::StartsWith(path, NVMEFS_PATH_PREFIX);
 }
 
+void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
+	handle.Cast<NvmeFileHandle>().SetFilePointer(location);
+}
+
+idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
+	return handle.Cast<NvmeFileHandle>().GetFilePointer();
+}
+
 } // namespace duckdb

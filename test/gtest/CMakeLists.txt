@@ -19,7 +19,7 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-add_executable(nvmefs_gtest "test.cpp")
+add_executable(nvmefs_gtest "test.cpp" "test_simple.cpp")
 
 target_link_libraries(nvmefs_gtest GTest::gtest_main)
 set_target_properties(nvmefs_gtest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gtests")

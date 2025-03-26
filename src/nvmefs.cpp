@@ -1,9 +1,5 @@
 #include "include/nvmefs.hpp"
-
 #include "duckdb/common/string_util.hpp"
-#include "duckdb/main/secret/secret_manager.hpp"
-#include "duckdb/common/file_opener.hpp"
-
 #include <libxnvme.h>
 
 namespace duckdb {

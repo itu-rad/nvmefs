@@ -130,7 +130,8 @@ NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref) : proxy_filesyste
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 }
 
-NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref, const string &dev_path, const uint64_t placement_handls) : proxy_filesystem(proxy_ref), device_path(dev_path), plhdls(placement_handls) {
+NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref, const string &dev_path, const uint64_t placement_handls)
+    : proxy_filesystem(proxy_ref), device_path(dev_path), plhdls(placement_handls) {
 	allocated_paths.push_back("nvmefs:///tmp");
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 }
@@ -266,5 +267,23 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 	return handle.Cast<NvmeFileHandle>().GetFilePointer();
 }
+
+NvmeDeviceGeometry NvmeFileSystem::GetDeviceGeometry() {
+
+	xnvme_dev *device = xnvme_dev_open(device_path.c_str(), nullptr);
+
+	NvmeDeviceGeometry geometry;
+	const xnvme_geo *geo = xnvme_dev_get_geo(device);
+
+	geometry.lba_size = geo->lba_nbytes;
+	geometry.lba_count = geo->tbytes / geo->lba_nbytes;
+
+	uint32_t nsid = xnvme_dev_get_nsid(device);
+	const xnvme_spec_idfy_ns *nsgeo = xnvme_dev_get_ns(device);
+	// Look at the ncap and nsze fields in nsgeo to get the number of LBAs in the namespace
+
+	xnvme_dev_close(device);
+
+	return geometry;
 
 } // namespace duckdb

@@ -78,6 +78,7 @@ class NvmeFileSystem : public FileSystem {
 
 public:
 	NvmeFileSystem(NvmeFileSystemProxy &proxy_ref);
+	NvmeFileSystem(NvmeFileSystemProxy &proxy_ref, const string &device_path, const uint64_t plhdls);
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
 	                                optional_ptr<FileOpener> opener = nullptr) override;
 
@@ -108,6 +109,8 @@ private:
 	map<string, uint8_t> allocated_placement_identifiers;
 	vector<string> allocated_paths;
 	NvmeFileSystemProxy &proxy_filesystem;
+	string device_path;
+	uint64_t plhdls;
 };
 
 } // namespace duckdb

@@ -53,6 +53,7 @@ typedef NvmeFileHandle MetadataFileHandle;
 class NvmeFileSystemProxy : public FileSystem {
 public:
 	NvmeFileSystemProxy();
+	NvmeFileSystemProxy(const string &device_path, const uint64_t plhdls);
 	~NvmeFileSystemProxy() = default;
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,

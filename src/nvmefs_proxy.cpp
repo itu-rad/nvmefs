@@ -52,15 +52,28 @@ unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpe
 
 void NvmeFileSystemProxy::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	MetadataType type = GetMetadataType(handle.path);
+	int64_t cursor_offset = fs->SeekPosition(handle);
+	location += cursor_offset;
+
 	uint64_t lba_start_location = GetLBA(type, handle.path, location);
 
-	fs->Read(handle, buffer, nr_bytes, lba_start_location);
+	// Get the offset of bytes within the block
+	int16_t in_block_offset = location % NVME_BLOCK_SIZE;
+	PrintDebug("Read with offset: " + std::to_string(in_block_offset));
+
+	fs->ReadInternal(handle, buffer, nr_bytes, lba_start_location, in_block_offset);
 }
 
 void NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	MetadataType type = GetMetadataType(handle.path);
+	int64_t cursor_offset = fs->SeekPosition(handle);
+	location += cursor_offset;
+
 	uint64_t lba_start_location = GetLBA(type, handle.path, location);
-	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
+	uint16_t in_block_offset = location % NVME_BLOCK_SIZE;
+	PrintDebug("Write with offset: " + std::to_string(in_block_offset));
+
+	uint64_t written_lbas = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location, in_block_offset);
 	UpdateMetadata(handle, lba_start_location, written_lbas, type);
 	PrintFullMetadata(*metadata);
 }
@@ -83,7 +96,7 @@ int64_t NvmeFileSystemProxy::Write(FileHandle &handle, void *buffer, int64_t nr_
 	MetadataType meta_type = GetMetadataType(handle.path);
 	uint64_t lba_start_location = GetStartLBA(meta_type, handle.path);
 
-	int64_t lbas_written = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location);
+	int64_t lbas_written = fs->WriteInternal(handle, buffer, nr_bytes, lba_start_location, 0);
 
 	PrintDebug("Number of bytes: " + std::to_string(nr_bytes) + "\n");
 	UpdateMetadata(handle, lba_start_location, lbas_written, meta_type);
@@ -375,6 +388,27 @@ uint64_t NvmeFileSystemProxy::GetLocationLBA(MetadataType type, string filename)
 	return lba;
 }
 
+uint64_t NvmeFileSystemProxy::GetEndLBA(MetadataType type, string filename) {
+	uint64_t lba {};
+
+	switch (type) {
+	case MetadataType::WAL:
+		lba = metadata->write_ahead_log.end;
+		break;
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_lba[filename];
+		lba = tfmeta.end;
+	} break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.end;
+		break;
+	default:
+		throw InvalidInputException("no such metadatatype");
+	}
+
+	return lba;
+}
+
 int64_t NvmeFileSystemProxy::GetFileSize(FileHandle &handle) {
 
 	D_ASSERT(this->metadata);
@@ -441,6 +475,25 @@ void NvmeFileSystemProxy::RemoveFile(const string &filename, optional_ptr<FileOp
 		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
 		break;
 	}
+}
+
+void NvmeFileSystemProxy::Seek(FileHandle &handle, idx_t location) {
+
+	D_ASSERT(location % NVME_BLOCK_SIZE == 0);
+	auto type = GetMetadataType(handle.path);
+
+	uint64_t end = (GetEndLBA(type, handle.path) - GetStartLBA(type, handle.path)) * NVME_BLOCK_SIZE;
+
+	if (location > end) {
+		throw IOException("Seek location out of bounds");
+	}
+
+	fs->Seek(handle, location);
+}
+
+idx_t NvmeFileSystemProxy::SeekPosition(FileHandle &handle) {
+
+	return fs->SeekPosition(handle);
 }
 
 } // namespace duckdb

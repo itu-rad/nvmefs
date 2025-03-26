@@ -70,6 +70,8 @@ public:
 	void RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
 	void CreateDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
 	void RemoveFile(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
+	void Seek(FileHandle &handle, idx_t location) override;
+	idx_t SeekPosition(FileHandle &handle) override;
 
 	string GetName() const {
 		return "NvmeFileSystemProxy";
@@ -85,6 +87,7 @@ private:
 	uint64_t GetLBA(MetadataType type, string filename, idx_t location);
 	uint64_t GetStartLBA(MetadataType type, string filename);
 	uint64_t GetLocationLBA(MetadataType type, string filename);
+	uint64_t GetEndLBA(MetadataType type, string filename);
 
 private:
 	Allocator &allocator;

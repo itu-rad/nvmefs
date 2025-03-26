@@ -17,6 +17,7 @@ NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t pli
     : FileHandle(file_system, path, flags) {
 	// Get placemenet handle indentifier and create placement idenetifier
 	// Inspiration: https://github.com/xnvme/xnvme/blob/be52a634c139647b14940ba8a3ff254d6b1ca8c4/tools/xnvme.c#L833
+	this->cursor_offset = 0;
 	this->device = device;
 	this->internal_fileHandle = internal_fileHandle;
 
@@ -59,6 +60,14 @@ idx_t NvmeFileHandle::GetFileSize() {
 
 void NvmeFileHandle::Sync() {
 	file_system.FileSync(*this);
+}
+
+void NvmeFileHandle::SetFilePointer(idx_t location) {
+	cursor_offset = location;
+}
+
+idx_t NvmeFileHandle::GetFilePointer() {
+	return cursor_offset;
 }
 
 /// @brief Calculates the amount of LBAs required to store the given number of bytes
@@ -193,39 +202,33 @@ uint8_t NvmeFileSystem::GetPlacementIdentifierIndexOrDefault(const string &path)
 }
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
-
-	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand(nr_bytes);
-	D_ASSERT(nvme_ctx->number_of_lbas > 0);
-
-	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
-
-	int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1, dev_buffer,
-	                         nullptr);
-	if (err) {
-		// TODO: Handle error
-		throw IOException("Error reading from NVMe device");
-	}
-
-	memcpy(buffer, dev_buffer, nr_bytes);
-	nvme_handle.FreeDeviceBuffer(dev_buffer);
+	ReadInternal(handle, buffer, nr_bytes, location, 0);
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	// fall-back - throw away number of LBA's written
-	WriteInternal(handle, buffer, nr_bytes, location);
+	WriteInternal(handle, buffer, nr_bytes, location, 0);
 }
 
-uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
+                                       idx_t in_block_offset) {
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 
 	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand(nr_bytes);
 	D_ASSERT(nvme_ctx->number_of_lbas > 0);
+	D_ASSERT((in_block_offset == 0 && nvme_ctx->number_of_lbas > 1) ||
+	         (in_block_offset >= 0 &&
+	          nvme_ctx->number_of_lbas == 1)); // We only support in-block writing of a single block... for now
 
 	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
-	memcpy(dev_buffer, buffer, nr_bytes);
+	if (in_block_offset > 0) {
+		D_ASSERT(in_block_offset + nr_bytes < NVME_BLOCK_SIZE);           // Be sure that the write fits within a block
+		Read(handle, dev_buffer, nvme_ctx->number_of_lbas, location_lba); // Reads the whole block
+	}
 
-	int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location, nvme_ctx->number_of_lbas - 1,
+	memcpy(dev_buffer, buffer + in_block_offset, nr_bytes);
+
+	int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location_lba, nvme_ctx->number_of_lbas - 1,
 	                          dev_buffer, nullptr);
 	if (err) {
 		// TODO: Handle error
@@ -238,8 +241,41 @@ uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t
 	return nvme_ctx->number_of_lbas;
 }
 
+uint64_t NvmeFileSystem::ReadInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
+                                      idx_t in_block_offset) {
+
+	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
+
+	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand(nr_bytes);
+	D_ASSERT(nvme_ctx->number_of_lbas > 0);
+
+	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
+
+	int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location_lba, nvme_ctx->number_of_lbas - 1,
+	                         dev_buffer, nullptr);
+	if (err) {
+		// TODO: Handle error
+		throw IOException("Error reading from NVMe device");
+	}
+
+	// Copy the data from the device buffer to the output buffer. We apply the offset, to read from the specific
+	// location within the block and only return that particular data
+	memcpy(buffer, dev_buffer + in_block_offset, nr_bytes);
+	nvme_handle.FreeDeviceBuffer(dev_buffer);
+
+	return nvme_ctx->number_of_lbas;
+}
+
 bool NvmeFileSystem::CanHandleFile(const string &path) {
 	return StringUtil::StartsWith(path, NVMEFS_PATH_PREFIX);
+}
+
+void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
+	handle.Cast<NvmeFileHandle>().SetFilePointer(location);
+}
+
+idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
+	return handle.Cast<NvmeFileHandle>().GetFilePointer();
 }
 
 } // namespace duckdb

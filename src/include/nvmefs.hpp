@@ -32,6 +32,7 @@ public:
 	void Write(void *buffer, idx_t nr_bytes, idx_t location);
 	int64_t Read(void *buffer, idx_t nr_bytes);
 	int64_t Write(void *buffer, idx_t nr_bytes);
+
 	idx_t GetFileSize();
 	void Sync();
 
@@ -49,6 +50,15 @@ protected:
 	/// @param buffer The buffer to free
 	void FreeDeviceBuffer(nvme_buf_ptr buffer);
 
+	/// @brief Set the cursor of the current file handle. This new position will work as an offset being applied for
+	/// future read and write operations
+	/// @param location The location to set the file pointer to
+	void SetFilePointer(idx_t location);
+
+	/// @brief Gets the current location(in bytes) of the file pointer
+	/// @return The current location of the file pointer in bytes
+	idx_t GetFilePointer();
+
 	void Close() {
 	}
 
@@ -59,6 +69,7 @@ protected:
 
 private:
 	bool internal_fileHandle; // Means that this file handle is used in the context of another file handle
+	uint64_t cursor_offset;
 };
 
 class NvmeFileSystemProxy;
@@ -73,6 +84,8 @@ public:
 	void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	bool CanHandleFile(const string &fpath) override;
+	void Seek(FileHandle &handle, idx_t location) override;
+	idx_t SeekPosition(FileHandle &handle) override;
 
 	string GetName() const {
 		return "NvmeFileSystem";
@@ -80,7 +93,10 @@ public:
 
 protected:
 	uint8_t GetPlacementIdentifierIndexOrDefault(const string &path);
-	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location);
+	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
+	                       idx_t in_block_offset);
+	uint64_t ReadInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
+	                      idx_t in_block_offset);
 
 	/// @brief Opens a file handle for metadata in the context of a given file handle
 	/// @param handle The file handle to get context from

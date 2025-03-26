@@ -77,7 +77,8 @@ static void AddConfig(DatabaseInstance &instance) {
 	config.AddExtensionOption("fdp_plhdls", "Amount of available placement handlers on the device",
 	                          {LogicalType::BIGINT}, Value(plhdls));
 
-	fs.RegisterSubSystem(make_uniq<NvmeFileSystemProxy>(device, uint64_t{plhdls}));
+
+	fs.RegisterSubSystem(make_uniq<NvmeFileSystemProxy>(device, static_cast<uint64_t>(plhdls)));
 }
 
 static void LoadInternal(DatabaseInstance &instance) {

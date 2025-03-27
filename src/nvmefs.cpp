@@ -274,13 +274,10 @@ NvmeDeviceGeometry NvmeFileSystem::GetDeviceGeometry() {
 
 	NvmeDeviceGeometry geometry;
 	const xnvme_geo *geo = xnvme_dev_get_geo(device);
+	const xnvme_spec_idfy_ns *nsgeo = xnvme_dev_get_ns(device);
 
 	geometry.lba_size = geo->lba_nbytes;
-	geometry.lba_count = geo->tbytes / geo->lba_nbytes;
-
-	uint32_t nsid = xnvme_dev_get_nsid(device);
-	const xnvme_spec_idfy_ns *nsgeo = xnvme_dev_get_ns(device);
-	// Look at the ncap and nsze fields in nsgeo to get the number of LBAs in the namespace
+	geometry.lba_count = nsgeo->nsze;
 
 	xnvme_dev_close(device);
 

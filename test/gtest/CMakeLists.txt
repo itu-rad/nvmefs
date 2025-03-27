@@ -9,8 +9,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 FetchContent_Declare(
   googletest
-  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
   DOWNLOAD_EXTRACT_TIMESTAMP true
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip 
 )
 
 # For Windows: Prevent overriding the parent project's compiler/linker settings
@@ -19,9 +19,12 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-add_executable(nvmefs_gtest "test.cpp" "test_simple.cpp")
+include_directories(${CMAKE_SOURCE_DIR}/src/include)
+include_directories(${CMAKE_SOURCE_DIR}/duckdb/src/include)
 
-target_link_libraries(nvmefs_gtest GTest::gtest_main)
+add_executable(nvmefs_gtest "test.cpp" "test_simple.cpp" "test_nvmefs_proxy.cpp")
+
+target_link_libraries(nvmefs_gtest GTest::gtest_main ${EXTENSION_NAME} duckdb)
 set_target_properties(nvmefs_gtest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gtests")
 
 include(GoogleTest)

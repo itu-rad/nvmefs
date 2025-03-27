@@ -103,6 +103,7 @@ private:
 
 	// Metadata of the filesystem present in the device
 	unique_ptr<GlobalMetadata> metadata;
+	NvmeDeviceGeometry geometry;
 	unique_ptr<NvmeFileSystem> fs;
 	map<std::string, TemporaryFileMetadata> file_to_lba;
 };

@@ -25,16 +25,10 @@ struct Metadata {
 	uint64_t start;
 	uint64_t end;
 	uint64_t location;
-
-	// db_end
-	// start end -> tmp wal
-	// tmp_head wal_head
-	// mapping fil -> (start, størrelse)
 };
 
 struct GlobalMetadata {
 	uint64_t db_path_size;
-	// TODO: use string instead
 	char db_path[101];
 
 	Metadata database;
@@ -93,6 +87,14 @@ private:
 
 private:
 	Allocator &allocator;
+
+	// Maximum storage for temporary files in bytes
+	idx_t maximum_temp_storage;
+
+	// Maximum storage for write ahead log in bytes
+	idx_t maximum_wal_storage;
+
+	// Metadata of the filesystem present in the device
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<NvmeFileSystem> fs;
 	map<std::string, TemporaryFileMetadata> file_to_lba;

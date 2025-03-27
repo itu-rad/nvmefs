@@ -193,11 +193,10 @@ void NvmeFileSystemProxy::InitializeMetadata(FileHandle &handle, string path) {
 	//  1 GB temp data -> x files -> map that supports x files total (this is the size)
 
 	NvmeDeviceGeometry geometry = fs->GetDeviceGeometry();
-	uint64_t temp_start = (geometry.lba_count - 1) - 2 ^ 30 / geometry.lba_size;
+	uint64_t temp_start = (geometry.lba_count - 1) - (maximum_temp_storage / geometry.lba_size);
 
-	uint64_t wal_size = 2 ^ 24 * 2; // 16 MiB * 2
-	uint64_t wal_lba_count = wal_size / geometry.lba_size;
-	uint64_t wal_start = (temp_start - 1) - wal_size;
+	uint64_t wal_lba_count = maximum_wal_storage / geometry.lba_size;
+	uint64_t wal_start = (temp_start - 1) - maximum_wal_storage;
 
 	Metadata meta_temp {.start = temp_start, .end = geometry.lba_count - 1, .location = temp_start};
 	Metadata meta_wal {.start = wal_start, .end = temp_start - 1, .location = wal_start};

@@ -1,9 +1,5 @@
 #include "include/nvmefs.hpp"
-
 #include "duckdb/common/string_util.hpp"
-#include "duckdb/main/secret/secret_manager.hpp"
-#include "duckdb/common/file_opener.hpp"
-
 #include <libxnvme.h>
 
 namespace duckdb {
@@ -134,18 +130,13 @@ NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref) : proxy_filesyste
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 }
 
+NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref, const string &dev_path, const uint64_t placement_handls) : proxy_filesystem(proxy_ref), device_path(dev_path), plhdls(placement_handls) {
+	allocated_paths.push_back("nvmefs:///tmp");
+	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
+}
+
 unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags,
                                                 optional_ptr<FileOpener> opener) {
-
-	FileOpenerInfo info;
-	info.file_path = "nvmefs://";
-	KeyValueSecretReader secret_reader(*opener, info, "nvmefs");
-
-	string device_path;
-	secret_reader.TryGetSecretKeyOrSetting("nvme_device_path", "nvme_device_path", device_path);
-
-	// TODO: Read settings from FileOpener if pressent. Else use defaults...
-
 	// Create NvmeFileHandler
 	auto xnvme_opts = xnvme_opts_default();
 	xnvme_dev *device = xnvme_dev_open(device_path.c_str(), &xnvme_opts);
@@ -158,11 +149,9 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 
 	// Get and add placement identifier for path
 	uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
-	uint8_t plid_count;
-	secret_reader.TryGetSecretKeyOrSetting("fdp_plhdls", "fdp_plhdls", plid_count);
 
 	unique_ptr<NvmeFileHandle> file_handler =
-	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, flags, false);
+	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plhdls, flags, false);
 
 	return std::move(file_handler);
 }

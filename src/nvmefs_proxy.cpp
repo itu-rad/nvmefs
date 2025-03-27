@@ -35,6 +35,10 @@ NvmeFileSystemProxy::NvmeFileSystemProxy()
     : fs(make_uniq<NvmeFileSystem>(*this)), allocator(Allocator::DefaultAllocator()) {
 }
 
+NvmeFileSystemProxy::NvmeFileSystemProxy(const string &device_path, const uint64_t plhdls)
+    : fs(make_uniq<NvmeFileSystem>(*this, device_path, plhdls)), allocator(Allocator::DefaultAllocator()) {
+}
+
 unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpenFlags flags,
                                                      optional_ptr<FileOpener> opener) {
 

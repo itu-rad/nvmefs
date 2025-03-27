@@ -24,16 +24,10 @@ struct Metadata {
 	uint64_t start;
 	uint64_t end;
 	uint64_t location;
-
-	// db_end
-	// start end -> tmp wal
-	// tmp_head wal_head
-	// mapping fil -> (start, størrelse)
 };
 
 struct GlobalMetadata {
 	uint64_t db_path_size;
-	// TODO: use string instead
 	char db_path[101];
 
 	Metadata database;
@@ -53,7 +47,15 @@ typedef NvmeFileHandle MetadataFileHandle;
 class NvmeFileSystemProxy : public FileSystem {
 public:
 	NvmeFileSystemProxy();
-	NvmeFileSystemProxy(const string &device_path, const uint64_t plhdls);
+
+	/// @brief Creates a new instance of NvmeFileSystemProxy using the specified device
+	/// @param device_path Path of the device to use
+	/// @param plhdls The number of placement handles to use
+	/// @param block_size
+	/// @param maximum_temp_storage
+	/// @param maximum_wal_storage
+	NvmeFileSystemProxy(const string &device_path, const uint64_t plhdls, idx_t maximum_temp_storage,
+	                    idx_t maximum_wal_storage);
 	~NvmeFileSystemProxy() = default;
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
@@ -92,6 +94,14 @@ private:
 
 private:
 	Allocator &allocator;
+
+	// Maximum storage for temporary files in bytes
+	idx_t maximum_temp_storage;
+
+	// Maximum storage for write ahead log in bytes
+	idx_t maximum_wal_storage;
+
+	// Metadata of the filesystem present in the device
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<NvmeFileSystem> fs;
 	map<std::string, TemporaryFileMetadata> file_to_lba;

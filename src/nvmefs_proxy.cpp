@@ -194,14 +194,16 @@ void NvmeFileSystemProxy::InitializeMetadata(FileHandle &handle, string path) {
 
 	NvmeDeviceGeometry geometry = fs->GetDeviceGeometry();
 	uint64_t temp_start = (geometry.lba_count - 1) - 2 ^ 30 / geometry.lba_size;
-	uint64_t wal_checkpoint_size = 2 ^ 24;
+
 	uint64_t wal_size = 2 ^ 24 * 2; // 16 MiB * 2
 	uint64_t wal_lba_count = wal_size / geometry.lba_size;
 	uint64_t wal_start = (temp_start - 1) - wal_size;
 
 	Metadata meta_temp {.start = temp_start, .end = geometry.lba_count - 1, .location = temp_start};
 	Metadata meta_wal {.start = wal_start, .end = temp_start - 1, .location = wal_start};
-	Metadata meta_db {.start = 1, .end = wal_start - 1, .location = 1};
+	Metadata meta_db {.start = 1,
+	                  .end = wal_start - 1,
+	                  .location = 1}; // 1 is the first lba due to lba 0 being allocated for device metadata
 
 	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata {});
 

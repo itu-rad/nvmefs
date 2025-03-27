@@ -192,9 +192,16 @@ void NvmeFileSystemProxy::InitializeMetadata(FileHandle &handle, string path) {
 	// Example:
 	//  1 GB temp data -> x files -> map that supports x files total (this is the size)
 
-	Metadata meta_db {.start = 1, .end = 5001, .location = 1};
-	Metadata meta_wal {.start = 5002, .end = 10002, .location = 5002};
-	Metadata meta_temp {.start = 10003, .end = 15003, .location = 10003};
+	NvmeDeviceGeometry geometry = fs->GetDeviceGeometry();
+	uint64_t temp_start = (geometry.lba_count - 1) - 2 ^ 30 / geometry.lba_size;
+	uint64_t wal_checkpoint_size = 2 ^ 24;
+	uint64_t wal_size = 2 ^ 24 * 2; // 16 MiB * 2
+	uint64_t wal_lba_count = wal_size / geometry.lba_size;
+	uint64_t wal_start = (temp_start - 1) - wal_size;
+
+	Metadata meta_temp {.start = temp_start, .end = geometry.lba_count - 1, .location = temp_start};
+	Metadata meta_wal {.start = wal_start, .end = temp_start - 1, .location = wal_start};
+	Metadata meta_db {.start = 1, .end = wal_start - 1, .location = 1};
 
 	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata {});
 

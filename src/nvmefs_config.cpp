@@ -56,11 +56,11 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 	string device;
 	int64_t plhdls = 0;
 	// TODO: ensure that we always have value here. It is possible to not have value
-	uint64_t max_temp_size = 2 ^ 30; // 1 GiB
+	uint64_t max_temp_size = 1ULL << 30; // 1 GiB
 	if (config.options.maximum_swap_space != DConstants::INVALID_INDEX) {
 		max_temp_size = static_cast<uint64_t>(config.options.maximum_swap_space);
 	}
-	uint64_t max_wal_size = 2 ^ 25; // 32 MiB
+	uint64_t max_wal_size = 1ULL << 25; // 32 MiB
 
 	secret_reader.TryGetSecretKeyOrSetting<string>("nvme_device_path", "nvme_device_path", device);
 	secret_reader.TryGetSecretKeyOrSetting<int64_t>("fdp_plhdls", "fdp_plhdls", plhdls);

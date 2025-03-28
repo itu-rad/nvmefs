@@ -6,6 +6,7 @@
 #include "duckdb/storage/storage_info.hpp"
 
 #include "nvmefs.hpp"
+#include "nvmefs_config.hpp"
 
 #include <string>
 
@@ -53,7 +54,7 @@ typedef NvmeFileHandle MetadataFileHandle;
 class NvmeFileSystemProxy : public FileSystem {
 public:
 	NvmeFileSystemProxy();
-	NvmeFileSystemProxy(const string &device_path, const uint64_t plhdls);
+	NvmeFileSystemProxy(NvmeConfig config);
 	~NvmeFileSystemProxy() = default;
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
@@ -95,6 +96,8 @@ private:
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<NvmeFileSystem> fs;
 	map<std::string, TemporaryFileMetadata> file_to_lba;
+	uint64_t max_temp_size;
+	uint64_t max_wal_size;
 };
 
 } // namespace duckdb

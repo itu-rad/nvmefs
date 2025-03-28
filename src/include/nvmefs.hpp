@@ -98,7 +98,7 @@ public:
 	}
 
 protected:
-	NvmeDeviceGeometry GetDeviceGeometry();
+	shared_ptr<NvmeDeviceGeometry> GetDeviceGeometry();
 	uint8_t GetPlacementIdentifierIndexOrDefault(const string &path);
 	uint64_t WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
 	                       idx_t in_block_offset);
@@ -114,6 +114,7 @@ protected:
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
 	vector<string> allocated_paths;
+	shared_ptr<NvmeDeviceGeometry> geometry;
 	NvmeFileSystemProxy &proxy_filesystem;
 	string device_path;
 	uint64_t plhdls;

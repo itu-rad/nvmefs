@@ -38,7 +38,7 @@ NvmeFileSystemProxy::NvmeFileSystemProxy()
 
 NvmeFileSystemProxy::NvmeFileSystemProxy(NvmeConfig config)
     : fs(make_uniq<NvmeFileSystem>(*this, config.device_path, config.plhdls)), allocator(Allocator::DefaultAllocator()),
-      max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size), geometry(&fs->GetDeviceGeometry()) {
+      max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size), geometry(fs->GetDeviceGeometry()) {
 }
 
 unique_ptr<FileHandle> NvmeFileSystemProxy::OpenFile(const string &path, FileOpenFlags flags,

@@ -1,4 +1,4 @@
-#include "nvmefs_secret.hpp"
+#include "nvmefs_config.hpp"
 
 #include "duckdb/main/extension_util.hpp"
 
@@ -43,5 +43,32 @@ void RegisterCreateNvmefsSecretFunciton(DatabaseInstance &instance) {
 
 void CreateNvmefsSecretFunctions::Register(DatabaseInstance &instance) {
 	RegisterCreateNvmefsSecretFunciton(instance);
+}
+
+NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
+	DBConfig &config = DBConfig::GetConfig(instance);
+
+	// Change global settings
+	TempDirectorySetting::SetGlobal(&instance, config, Value("nvmefs:///tmp"));
+
+	KeyValueSecretReader secret_reader(instance, "nvmefs", "nvmefs://");
+
+	string device;
+	int64_t plhdls = 0;
+	//TODO: ensure that we always have value here. It is possible to not have value
+	uint64_t max_temp_size = static_cast<uint64_t>(config.options.maximum_swap_space);
+	uint64_t max_wal_size = 2^25; // 32 MiB
+
+
+	secret_reader.TryGetSecretKeyOrSetting<string>("nvme_device_path", "nvme_device_path", device);
+	secret_reader.TryGetSecretKeyOrSetting<int64_t>("fdp_plhdls", "fdp_plhdls", plhdls);
+
+	config.AddExtensionOption("nvme_device_path", "Path to NVMe device", {LogicalType::VARCHAR}, Value(device));
+	config.AddExtensionOption("fdp_plhdls", "Amount of available placement handlers on the device",
+	                          {LogicalType::BIGINT}, Value(plhdls));
+
+
+	return NvmeConfig{.device_path=device, .plhdls=static_cast<uint64_t>(plhdls), .max_temp_size=max_temp_size, .max_wal_size=max_wal_size};
+
 }
 } // namespace duckdb

@@ -282,5 +282,5 @@ NvmeDeviceGeometry NvmeFileSystem::GetDeviceGeometry() {
 	xnvme_dev_close(device);
 
 	return geometry;
-
+}
 } // namespace duckdb

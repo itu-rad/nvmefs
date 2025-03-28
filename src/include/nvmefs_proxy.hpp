@@ -43,6 +43,7 @@ struct TemporaryFileMetadata {
 
 class NvmeFileSystem;
 class NvmeFileHandle;
+struct NvmeDeviceGeometry;
 typedef NvmeFileHandle MetadataFileHandle;
 
 class NvmeFileSystemProxy : public FileSystem {

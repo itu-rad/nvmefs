@@ -268,15 +268,11 @@ idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 	return handle.Cast<NvmeFileHandle>().GetFilePointer();
 }
 
-shared_ptr<NvmeDeviceGeometry> NvmeFileSystem::GetDeviceGeometry() {
-
-	if (geometry) {
-		return geometry;
-	}
+unique_ptr<NvmeDeviceGeometry> NvmeFileSystem::GetDeviceGeometry() {
 
 	xnvme_dev *device = xnvme_dev_open(device_path.c_str(), nullptr);
 
-	NvmeDeviceGeometry *device_geo = new NvmeDeviceGeometry();
+	unique_ptr<NvmeDeviceGeometry> device_geo = make_uniq<NvmeDeviceGeometry>(NvmeDeviceGeometry {});
 	const xnvme_geo *geo = xnvme_dev_get_geo(device);
 	const xnvme_spec_idfy_ns *nsgeo = xnvme_dev_get_ns(device);
 
@@ -285,6 +281,6 @@ shared_ptr<NvmeDeviceGeometry> NvmeFileSystem::GetDeviceGeometry() {
 
 	xnvme_dev_close(device);
 
-	return unique_ptr<NvmeDeviceGeometry>(device_geo);
+	return move(device_geo);
 }
 } // namespace duckdb

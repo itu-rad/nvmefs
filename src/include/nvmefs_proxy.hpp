@@ -89,18 +89,14 @@ private:
 private:
 	Allocator &allocator;
 
-	// Maximum storage for temporary files in bytes
-	idx_t maximum_temp_storage;
-
-	// Maximum storage for write ahead log in bytes
-	idx_t maximum_wal_storage;
-
 	// Metadata of the filesystem present in the device
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<NvmeDeviceGeometry> geometry;
 	unique_ptr<NvmeFileSystem> fs;
 	map<std::string, TemporaryFileMetadata> file_to_lba;
+	// Maximum storage for temporary files in bytes
 	uint64_t max_temp_size;
+	// Maximum storage for write ahead log in bytes
 	uint64_t max_wal_size;
 };
 

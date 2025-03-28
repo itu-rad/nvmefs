@@ -69,7 +69,6 @@ static void AddConfig(DatabaseInstance &instance) {
 }
 
 static void LoadInternal(DatabaseInstance &instance) {
-	CreateNvmefsSecretFunctions::Register(instance);
 	AddConfig(instance);
 
 	TableFunction config_print_function("print_config", {}, ConfigPrint, ConfigPrintBind);

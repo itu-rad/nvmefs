@@ -65,7 +65,7 @@ namespace duckdb {
 
 		uint32_t nsid = xnvme_dev_get_nsid(device);
 		uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
-		xnvme_cmd_ctx xnvme_ctx = PrepareWriteContext(plid_idx);
+		xnvme_cmd_ctx xnvme_ctx = PrepareReadContext(plid_idx);
 
 		int16_t err = xnvme_nvm_write(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 		if (err) {

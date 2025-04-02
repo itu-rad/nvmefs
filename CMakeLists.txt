@@ -13,7 +13,6 @@ set(EXTENSION_SOURCES
   src/nvmefs_extension.cpp
   src/nvmefs.cpp
   src/nvmefs_config.cpp
-  src/nvmefs_proxy.cpp
   src/device.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})

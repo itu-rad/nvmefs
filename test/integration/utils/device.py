@@ -17,7 +17,7 @@ class NvmeDevice:
     
     def __get_device_info(self, device_path: str):
         command = f"nvme id-ctrl {device_path} | grep 'tnvmcap' | sed 's/,//g' | awk -v BS={self.block_size} '{{print $3/BS}}'"
-        block_output = subprocess.check_output(command)
+        block_output = subprocess.check_output(command, shell=True)
         print(block_output)
         number_of_blocks = int(block_output)
 
@@ -30,26 +30,26 @@ class NvmeDevice:
         Deallocates all blocks on the device
         """
 
-        os.system("nvme dsm %s --namespace-id=%d --ad -s 0 -b %d", self.device_path, namespace_id, self.number_of_blocks)
+        os.system(f"nvme dsm {self.device_path} --namespace-id={namespace_id} --ad -s 0 -b {self.number_of_blocks}")
 
 
     def enable_fdp(self):
         """
         Enables flexible data placement(FDP) on the device
         """
-        os.system("nvme set-feature %s -f 0x1D -c 1 -s", self.device_path)
+        os.system(f"nvme set-feature {self.device_path} -f 0x1D -c 1 -s")
 
     def disable_fdp(self):
         """
         Disables flexible data placement(FDP) on the device
         """
-        os.system("nvme set-feature %s -f 0x1D -c 0 -s", self.device_path)
+        os.system(f"nvme set-feature {self.device_path} -f 0x1D -c 0 -s")
 
     def delete_namespace(self, namespace_id: int):
         """
         Deletes a namespace on the device
         """
-        os.system("nvme delete-ns %s --namespace-id=%d", self.device_path, namespace_id)
+        os.system(f"nvme delete-ns {self.device_path} --namespace-id={namespace_id}")
 
     def create_namespace(self, device_path: str, namespace_id: int, enable_fdp: bool = False):
         """
@@ -59,15 +59,15 @@ class NvmeDevice:
         # Create a namespace on the device
         result = 1
         if enable_fdp:
-            result = os.system("nvme create-ns %s -b %d --nsze=%d --ncap=%d --nphndls=7 --phndls=0,1,2,3,4,5,6", device_path, self.block_size, self.number_of_blocks, self.number_of_blocks)
+            result = os.system(f"nvme create-ns {device_path} -b {self.block_size} --nsze={self.number_of_blocks} --ncap={self.number_of_blocks} --nphndls=7 --phndls=0,1,2,3,4,5,6")
         else: 
-            result = os.system("nvme create-ns %s -b %d --nsze=%d --ncap=%d", device_path, self.block_size, self.number_of_blocks, self.number_of_blocks)
+            result = os.system(f"nvme create-ns {device_path} -b {self.block_size} --nsze={self.number_of_blocks} --ncap={self.number_of_blocks}", device_path, self.block_size, self.number_of_blocks, self.number_of_blocks)
 
         if result != 0:
             raise Exception("Failed to create namespace")
 
         # Attach the namespace to the device
-        result = os.system("nvme attach-ns %s --namespace-id=%d --controllers=0x7")
+        result = os.system(f"nvme attach-ns {device_path} --namespace-id={namespace_id} --controllers=0x7")
 
         if result != 0:
             raise Exception("Failed to attach namespace")
@@ -79,7 +79,7 @@ def setup_device(device: NvmeDevice, namespace_id:int = 1, enable_fdp: bool = Fa
     Sets up the device by creating a namespace and enabling FDP if required
     """
 
-    device_ns_path = pathlib.Path("/dev/nvme1n%d", namespace_id)
+    device_ns_path = pathlib.Path(f"/dev/nvme1n{namespace_id}")
     if device_ns_path.exists():
         device.deallocate(namespace_id)
         device.delete_namespace(namespace_id)

@@ -1,5 +1,6 @@
 import pytest
 import duckdb
+from decimal import Decimal
 
 @pytest.fixture(scope="module")
 def tpch_database_connection(device):
@@ -31,8 +32,12 @@ def test_large_query_and_spilling_to_disk(tpch_database_connection):
     """
 
     connection = tpch_database_connection
-    expected_query7_result = connection.execute("SELECT answer FROM tpch_answers() WHERE query_nr = 7 AND scale_factor = 1;").fetchall()
+    result = connection.execute("SELECT answer FROM tpch_answers() WHERE query_nr = 7 AND scale_factor = 1;").fetchall()
+    result_rows = result[0][0].splitlines()[1:]
+    expected_query7_results = [(columns[0], columns[1], int(columns[2]), Decimal(columns[3])) for columns in 
+                               [line.split("|") for line in result_rows]]
+
 
     query7_result = connection.execute("PRAGMA tpch(7);").fetchall()
 
-    assert query7_result == expected_query7_result
+    assert query7_result == expected_query7_results

@@ -5,11 +5,16 @@
 #include "duckdb/common/map.hpp"
 
 #include "device.hpp"
+#include "nvme_device.hpp"
 #include "nvmefs_config.hpp"
 
 namespace duckdb {
 
 constexpr idx_t NVMEFS_GLOBAL_METADATA_LOCATION = 0;
+constexpr char NVMEFS_MAGIC_BYTES[] = "NVMEFS";
+const string NVMEFS_PATH_PREFIX = "nvmefs://";
+const string NVMEFS_GLOBAL_METADATA_PATH = "nvmefs://.global_metadata";
+
 
 enum MetadataType { DATABASE, WAL, TEMPORARY };
 
@@ -34,9 +39,12 @@ struct TemporaryFileMetadata {
 };
 
 class NvmeFileHandle : public FileHandle {
+
+friend class NvmeFileSystem;
+
 public:
 	NvmeFileHandle(FileSystem &file_system, string path, FileOpenFlags flags);
-	~NvmeFileHandle() override;
+	~NvmeFileHandle() = default;
 
 	void Read(void *buffer, idx_t nr_bytes, idx_t location);
 	void Write(void *buffer, idx_t nr_bytes, idx_t location);
@@ -45,8 +53,13 @@ public:
 	void Sync();
 
 private:
-	unique_ptr<CmdContext> PrepareWriteCommand(int64_t nr_bytes);
-	unique_ptr<CmdContext> PrepareReadCommand(int64_t nr_bytes);
+	unique_ptr<CmdContext> PrepareWriteCommand(idx_t nr_bytes, idx_t start_lba, idx_t offset);
+	unique_ptr<CmdContext> PrepareReadCommand(idx_t nr_bytes, idx_t start_lba, idx_t offset);
+
+	/// @brief Calculates the amount of LBAs required to store the given number of bytes
+	/// @param nr_bytes The number of bytes to store
+	/// @return The number of LBAs required to store the given number of bytes
+	idx_t CalculateRequiredLBACount(idx_t nr_bytes);
 
 	void SetFilePointer(idx_t location);
 	idx_t GetFilePointer();
@@ -58,7 +71,7 @@ private:
 class NvmeFileSystem : public FileSystem {
 public:
 	NvmeFileSystem(NvmeConfig config);
-	NvmeFileSystem(NvmeConfig config, Device device);
+	NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device);
 	~NvmeFileSystem() = default;
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
@@ -79,17 +92,19 @@ public:
 	void Seek(FileHandle &handle, idx_t location) override;
 	idx_t SeekPosition(FileHandle &handle) override;
 
+	const Device& GetDevice();
+
 	string GetName() const {
 		return "NvmeFileSystem";
 	}
 
 private:
 	bool TryLoadMetadata();
-	void InitializeMetadata(FileHandle &handle, string path);
-	unique_ptr<GlobalMetadata> ReadMetadata(FileHandle &handle);
-	void WriteMetadata(FileHandle &handle, GlobalMetadata *global);
-	void UpdateMetadata(FileHandle &handle, uint64_t location, uint64_t nr_lbas, MetadataType type);
-	MetadataType GetMetadataType(const string &path);
+	void InitializeMetadata(const string &filename);
+	unique_ptr<GlobalMetadata> ReadMetadata();
+	void WriteMetadata(GlobalMetadata &global);
+	void UpdateMetadata(CmdContext Context);
+	MetadataType GetMetadataType(const string &filename);
 	idx_t GetLBA(const string &filename, idx_t location);
 	idx_t GetStartLBA(const string &filename);
 	idx_t GetLocationLBA(const string &filename);

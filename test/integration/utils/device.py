@@ -18,7 +18,6 @@ class NvmeDevice:
     def __get_device_info(self, device_path: str):
         command = f"nvme id-ctrl {device_path} | grep 'tnvmcap' | sed 's/,//g' | awk -v BS={self.block_size} '{{print $3/BS}}'"
         block_output = subprocess.check_output(command, shell=True)
-        print(block_output)
         number_of_blocks = int(block_output)
 
         return number_of_blocks

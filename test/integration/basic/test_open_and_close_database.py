@@ -6,14 +6,14 @@ def test_create_database_close_and_open(device):
     The reason is that the database persist the data after it is closed, therefor we should be 
     able to open it again and read the same data.   
     """
-    duckdb.execute(f"""CREATE OR REPLACE PERSISTENT SECRET nvmefs (
+
+    con = duckdb.connect("nvmefs:///test.db", config={"allow_unsigned_extensions": "true"})
+    con.load_extension("nvmefs")
+    con.execute(f"""CREATE OR REPLACE PERSISTENT SECRET nvmefs (
                         TYPE NVMEFS,
                         nvme_device_path '{device.device_path}',
                         fdp_plhdls       '{7}'
                     );""")
-
-    con = duckdb.connect("nvmefs:///test.db", config={"allow_unsigned_extensions": "true"})
-    con.load_extension("nvmefs")
 
     con.execute("CREATE SCHEMA public;")
     con.execute("CREATE TABLE public.numbers (a INTEGER);")

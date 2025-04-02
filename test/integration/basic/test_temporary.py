@@ -4,15 +4,16 @@ import duckdb
 @pytest.fixture(scope="module")
 def tpch_database_connection(device):
     # Setup
-    duckdb.execute(f"""CREATE OR REPLACE PERSISTENT SECRET nvmefs (
-                        TYPE NVMEFS,
-                        nvme_device_path '{device.device_path}',
-                        fdp_plhdls       '{7}'
-                    );""")
 
     con = duckdb.connect("nvmefs:///database.db", config={"allow_unsigned_extensions": "true", "memory_limit": "500MB"})
     con.load_extension("nvmefs")
     con.load_extension("tpch")
+
+    con.execute(f"""CREATE OR REPLACE PERSISTENT SECRET nvmefs (
+                        TYPE NVMEFS,
+                        nvme_device_path '{device.device_path}',
+                        fdp_plhdls       '{7}'
+                    );""")
 
     con.execute("CALL dbgen(sf=1);")
 

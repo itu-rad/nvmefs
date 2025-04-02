@@ -7,25 +7,29 @@ def test_create_database_close_and_open(device):
     able to open it again and read the same data.   
     """
 
-    con = duckdb.connect("nvmefs:///test.db", config={"allow_unsigned_extensions": "true"})
+    con = duckdb.connect(config={"allow_unsigned_extensions": "true"})
     con.load_extension("nvmefs")
     con.execute(f"""CREATE OR REPLACE PERSISTENT SECRET nvmefs (
                         TYPE NVMEFS,
                         nvme_device_path '{device.device_path}',
                         fdp_plhdls       '{7}'
                     );""")
+    
+    con.execute("ATTACH DATABASE 'nvmefs:///test.db' AS test (READ_WRITE);")
 
-    con.execute("CREATE SCHEMA public;")
-    con.execute("CREATE TABLE public.numbers (a INTEGER);")
-    con.execute("INSERT INTO numbers VALUES (1), (2), (3);")
-    result = con.execute("SELECT * FROM numbers;").fetchall()
+    con.execute("CREATE SCHEMA test.public;")
+    con.execute("CREATE TABLE test.public.numbers (a INTEGER);")
+    con.execute("INSERT INTO test.public.numbers VALUES (1), (2), (3);")
+    result = con.execute("SELECT * FROM test.public.numbers;").fetchall()
     assert result == [(1), (2), (3)]
 
     con.close()
 
-    con = duckdb.connect("nvmefs:///test.db", config={"allow_unsigned_extensions": "true"})
+    con = duckdb.connect(config={"allow_unsigned_extensions": "true"})
     con.load_extension("nvmefs")
 
-    result = con.execute("SELECT * FROM numbers;").fetchall()
+    con.execute("ATTACH DATABASE 'nvmefs:///test.db' AS test (READ_WRITE);")
+
+    result = con.execute("SELECT * FROM test.public.numbers;").fetchall()
     assert result == [(1), (2), (3)]
     con.close()

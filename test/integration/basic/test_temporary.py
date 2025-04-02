@@ -7,7 +7,7 @@ def tpch_database_connection(device):
     duckdb.execute(f"""CREATE OR REPLACE PERSISTENT SECRET nvmefs (
                         TYPE NVMEFS,
                         nvme_device_path '{device.device_path}',
-                        fdp_plhdls       '{7}',
+                        fdp_plhdls       '{7}'
                     );""")
 
     con = duckdb.connect("nvmefs:///database.db", config={"allow_unsigned_extensions": "true", "memory_limit": "500MB"})

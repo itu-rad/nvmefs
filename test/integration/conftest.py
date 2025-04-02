@@ -5,7 +5,7 @@ from utils.device import NvmeDevice
 def pytest_addoption(parser):
 
     parser.addoption(
-        "--device_path",
+        "--device",
         type=str,
         help="Path to the device to be used for the extension",
         default="/dev/ng1n1"
@@ -14,7 +14,7 @@ def pytest_addoption(parser):
 
 @pytest.fixture(scope="session")
 def device_path(pytestconfig):
-    return pytestconfig.getoption("device_path")
+    return pytestconfig.getoption("device")
 
 @pytest.fixture(scope="module")
 def device(device_path):

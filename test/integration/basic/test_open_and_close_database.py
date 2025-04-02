@@ -21,7 +21,7 @@ def test_create_database_close_and_open(device):
     con.execute("CREATE TABLE test.public.numbers (a INTEGER);")
     con.execute("INSERT INTO test.public.numbers VALUES (1), (2), (3);")
     result = con.execute("SELECT * FROM test.public.numbers;").fetchall()
-    assert result == [(1), (2), (3)]
+    assert result == [(1,), (2,), (3,)]
 
     con.close()
 
@@ -31,5 +31,5 @@ def test_create_database_close_and_open(device):
     con.execute("ATTACH DATABASE 'nvmefs:///test.db' AS test (READ_WRITE);")
 
     result = con.execute("SELECT * FROM test.public.numbers;").fetchall()
-    assert result == [(1), (2), (3)]
+    assert result == [(1,), (2,), (3,)]
     con.close()

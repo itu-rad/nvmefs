@@ -9,6 +9,13 @@ struct DeviceGeometry {
 	idx_t lba_count;
 };
 
+struct CmdContext {
+	idx_t nr_bytes;
+	idx_t nr_lbas;
+	idx_t start_lba;
+	idx_t offset;
+};
+
 class Device {
 	public:
 		virtual ~Device() = default;

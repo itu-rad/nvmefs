@@ -9,7 +9,7 @@
 
 namespace duckdb {
 
-constexpr uint64_t NVMEFS_GLOBAL_METADATA_LOCATION = 0;
+constexpr idx_t NVMEFS_GLOBAL_METADATA_LOCATION = 0;
 
 enum MetadataType { DATABASE, WAL, TEMPORARY };
 
@@ -33,12 +33,6 @@ struct TemporaryFileMetadata {
 	uint64_t end;
 };
 
-struct NvmeCmdContext {
-	xnvme_cmd_ctx ctx;
-	uint32_t namespace_id;
-	uint64_t number_of_lbas;
-};
-
 class NvmeFileHandle : public FileHandle {
 public:
 	NvmeFileHandle(FileSystem &file_system, string path, FileOpenFlags flags);
@@ -50,18 +44,21 @@ public:
 	idx_t GetFileSize();
 	void Sync();
 
-protected:
-	unique_ptr<NvmeCmdContext> PrepareWriteCommand(int64_t nr_bytes);
-	unique_ptr<NvmeCmdContext> PrepareReadCommand(int64_t nr_bytes);
+private:
+	unique_ptr<CmdContext> PrepareWriteCommand(int64_t nr_bytes);
+	unique_ptr<CmdContext> PrepareReadCommand(int64_t nr_bytes);
 
 	void SetFilePointer(idx_t location);
 	idx_t GetFilePointer();
+
+private:
+	idx_t cursor_offset;
 };
 
 class NvmeFileSystem : public FileSystem {
 public:
 	NvmeFileSystem(NvmeConfig config);
-	NvmeFileSystem(NvmeConfig config, NvmeDevice device);
+	NvmeFileSystem(NvmeConfig config, Device device);
 	~NvmeFileSystem() = default;
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
@@ -83,7 +80,7 @@ public:
 	idx_t SeekPosition(FileHandle &handle) override;
 
 	string GetName() const {
-		return "NvmeFileSystemProxy";
+		return "NvmeFileSystem";
 	}
 
 private:

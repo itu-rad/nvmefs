@@ -31,7 +31,7 @@ def test_large_query_and_spilling_to_disk(tpch_database_connection):
     """
 
     connection = tpch_database_connection
-    expected_query7_result = connection.execute("FROM tpch_answers() WHERE query_nr = 7 AND scale_factor = 1;").fetchall()
+    expected_query7_result = connection.execute("SELECT answer FROM tpch_answers() WHERE query_nr = 7 AND scale_factor = 1;").fetchall()
 
     query7_result = connection.execute("PRAGMA tpch(7);").fetchall()
 

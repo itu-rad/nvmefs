@@ -323,6 +323,8 @@ namespace duckdb {
 		unique_ptr<CmdContext> cmd_ctx =
 			fh->Cast<NvmeFileHandle>().PrepareReadCommand(bytes_to_read, NVMEFS_GLOBAL_METADATA_LOCATION, 0);
 
+		device->Read(buffer, *cmd_ctx);
+
 		if(memcmp(buffer, NVMEFS_MAGIC_BYTES, nr_bytes_magic) == 0){
 			global = make_uniq<GlobalMetadata>(GlobalMetadata {});
 			memcpy(global.get(), buffer + nr_bytes_magic, nr_bytes_global);

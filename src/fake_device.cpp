@@ -1,19 +1,37 @@
 #include "fake_device.hpp"
 
 namespace duckdb {
-FakeDevice::FakeDevice(idx_t lba_count, idx_t lba_size) : Device(), geometry(DeviceGeometry {lba_count, lba_size}) {
-	vector<uint8_t> data(lba_count * lba_size);
+FakeDevice::FakeDevice(idx_t lba_count, idx_t lba_size)
+    : Device(), geometry(DeviceGeometry {lba_count, lba_size}), memory(lba_count * lba_size) {
 }
 
 FakeDevice::~FakeDevice() {
 }
 
-idx_t FakeDevice::Write(void *buffer, idx_t nr_bytes, idx_t nr_lba, idx_t start_lba, idx_t offset) {
-	return nr_lba;
+idx_t FakeDevice::Write(void *buffer, CmdContext context) {
+	D_ASSERT(context.start_lba + context.nr_lbas <= geometry.lba_count);
+
+	// Get pointer to the start of the requested memory location
+	idx_t start_location_bytes = context.start_lba * geometry.lba_size + context.offset;
+	uint8_t *mem_ptr = memory.data() + start_location_bytes;
+
+	// Write the data to in-memory device
+	memcpy(mem_ptr, buffer, context.nr_bytes);
+
+	return context.nr_lbas;
 }
 
-idx_t FakeDevice::Read(void *buffer, idx_t nr_bytes, idx_t nr_lba, idx_t start_lba, idx_t offset) {
-	return nr_lba;
+idx_t FakeDevice::Read(void *buffer, CmdContext context) {
+	D_ASSERT(context.start_lba + context.nr_lbas <= geometry.lba_count);
+
+	// Get pointer to the start of the requested memory location
+	idx_t start_location_bytes = context.start_lba * geometry.lba_size + context.offset;
+	uint8_t *mem_ptr = memory.data() + start_location_bytes;
+
+	// Read the data from in-memory device to the buffer
+	memcpy(buffer, mem_ptr, context.nr_bytes);
+
+	return context.nr_lbas;
 }
 
 DeviceGeometry FakeDevice::GetDeviceGeometry() {

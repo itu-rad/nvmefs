@@ -17,15 +17,15 @@ struct CmdContext {
 };
 
 class Device {
-	public:
-		virtual ~Device() = default;
+public:
+	virtual ~Device() = default;
 
-		virtual idx_t Write(void *buffer, CmdContext &context);
-		virtual idx_t Read(void *buffer, CmdContext &context);
+	virtual idx_t Write(void *buffer, const CmdContext &context);
+	virtual idx_t Read(void *buffer, const CmdContext &context);
 
-		virtual DeviceGeometry GetDeviceGeometry();
+	virtual DeviceGeometry GetDeviceGeometry();
 
-		virtual string GetName() const = 0;
+	virtual string GetName() const = 0;
 };
 
-}
+} // namespace duckdb

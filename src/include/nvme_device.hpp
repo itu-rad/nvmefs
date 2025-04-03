@@ -7,7 +7,7 @@
 
 namespace duckdb {
 
-typedef void* nvme_buf_ptr;
+typedef void *nvme_buf_ptr;
 
 struct NvmeDeviceGeometry : public DeviceGeometry {};
 struct NvmeCmdContext : public CmdContext {
@@ -16,7 +16,7 @@ struct NvmeCmdContext : public CmdContext {
 
 class NvmeDevice : public Device {
 public:
-	NvmeDevice(const string& device_path,  const idx_t placement_handles);
+	NvmeDevice(const string &device_path, const idx_t placement_handles);
 	~NvmeDevice();
 
 	/// @brief Writes data from the input buffer to the device at the specified LBA position
@@ -26,7 +26,7 @@ public:
 	/// @param start_lab The LBA to start writing from
 	/// @param offset An offset into the LBA
 	/// @return The amount of LBAs written to the device
-	idx_t Write(void *buffer, CmdContext &context) override;
+	idx_t Write(void *buffer, const CmdContext &context) override;
 
 	/// @brief Reads data from the device at the specified LBA position into the output buffer
 	/// @param buffer The output buffer that will contain data read from the device
@@ -35,7 +35,7 @@ public:
 	/// @param start_lab The LBA to start reading from
 	/// @param offset An offset into the LBA
 	/// @return The amount of LBAs read from the device
-	idx_t Read(void *buffer, CmdContext &context) override;
+	idx_t Read(void *buffer, const CmdContext &context) override;
 
 	/// @brief Fetches the geometry of the device
 	/// @return The device geometry
@@ -51,7 +51,7 @@ private:
 	/// @brief Determines which placment handler should be used for the given path
 	/// @param path The path of the file that will be opened
 	/// @return A placement identifier
-	uint8_t GetPlacementIdentifierOrDefault(const string& path);
+	uint8_t GetPlacementIdentifierOrDefault(const string &path);
 
 	/// @brief Allocates a device specific buffer. Should be freed with FreeDeviceBuffer.
 	/// @param nr_bytes The number of bytes to allocate (The allocated buffer mighr be larger)
@@ -84,4 +84,4 @@ private:
 	DeviceGeometry geometry;
 };
 
-}
+} // namespace duckdb

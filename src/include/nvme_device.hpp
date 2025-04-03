@@ -43,7 +43,7 @@ public:
 
 	/// @brief Get the name of the device
 	/// @return Name of device
-	string GetName() {
+	string GetName() const {
 		return "NvmeDevice";
 	}
 
@@ -78,10 +78,10 @@ private:
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
-	const xnvme_dev *device;
+	xnvme_dev *device;
 	const string dev_path;
 	const idx_t plhdls;
-	const DeviceGeometry geometry;
+	DeviceGeometry geometry;
 };
 
 }

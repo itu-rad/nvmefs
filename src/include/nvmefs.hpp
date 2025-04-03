@@ -52,6 +52,8 @@ public:
 	idx_t GetFileSize();
 	void Sync();
 
+	void Close() override;
+
 private:
 	unique_ptr<CmdContext> PrepareWriteCommand(idx_t nr_bytes, idx_t start_lba, idx_t offset);
 	unique_ptr<CmdContext> PrepareReadCommand(idx_t nr_bytes, idx_t start_lba, idx_t offset);

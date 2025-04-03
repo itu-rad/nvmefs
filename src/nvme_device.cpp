@@ -25,11 +25,11 @@ namespace duckdb {
 		D_ASSERT((ctx.offset == 0 && ctx.nr_lbas > 1) || (ctx.offset >= 0 && ctx.nr_lbas == 1));
 
 		nvme_buf_ptr dev_buffer = AllocateDeviceBuffer(ctx.nr_bytes);
-		if (offset > 0) {
+		if (ctx.offset > 0) {
 			// Check if write is fully contained within single block
 			D_ASSERT(ctx.offset + ctx.nr_bytes < geometry.lba_size);
 			// Read the whole LBA block
-			Read(dev_buffer, ctx.nr_bytes, ctx.nr_lbas, ctx.start_lba);
+			Read(dev_buffer, ctx);
 		}
 		memcpy(dev_buffer, buffer + ctx.offset, ctx.nr_bytes);
 
@@ -37,7 +37,7 @@ namespace duckdb {
 		uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 		xnvme_cmd_ctx xnvme_ctx = PrepareWriteContext(plid_idx);
 
-		int err = xnvme_nvm_write(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
+		int err = xnvme_nvm_write(&xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 		if (err) {
 			xnvme_cli_perr("Could not write to device with xnvme_nvme_write(): ", err);
 			throw IOException("Encountered error when writing to NVMe device");
@@ -48,7 +48,7 @@ namespace duckdb {
 		return ctx.nr_lbas;
 	}
 
-	idx_t NvmeDevice::Read(void *buffer, CmdContext &ctx) {
+	idx_t NvmeDevice::Read(void *buffer, CmdContext &context) {
 		NvmeCmdContext &ctx = static_cast<NvmeCmdContext&>(context);
 		D_ASSERT(ctx.nr_lbas > 0);
 		// We only support offset reads within a single block
@@ -60,7 +60,7 @@ namespace duckdb {
 		uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 		xnvme_cmd_ctx xnvme_ctx = PrepareReadContext(plid_idx);
 
-		int err = xnvme_nvm_read(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
+		int err = xnvme_nvm_read(&xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 		if (err) {
 			xnvme_cli_perr("Could not write to device with xnvme_nvme_write(): ", err);
 			throw IOException("Encountered error when writing to NVMe device");
@@ -71,7 +71,7 @@ namespace duckdb {
 		return ctx.nr_lbas;
 	}
 
-	NvmeDeviceGeometry NvmeDevice::GetDeviceGeometry() {
+	DeviceGeometry NvmeDevice::GetDeviceGeometry() {
 		return geometry;
 	}
 
@@ -94,7 +94,7 @@ namespace duckdb {
 		xnvme_buf_free(device, buffer);
 	}
 
-	NvmeDeviceGeometry NvmeDevice::LoadDeviceGeometry() {
+	DeviceGeometry NvmeDevice::LoadDeviceGeometry() {
 		NvmeDeviceGeometry geometry{};
 
 		const xnvme_geo *geo = xnvme_dev_get_geo(device);

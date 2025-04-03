@@ -21,6 +21,8 @@ namespace duckdb {
 		file_system.FileSync(*this);
 	}
 
+	void NvmeFileHandle::Close() {}
+
 	unique_ptr<CmdContext> NvmeFileHandle::PrepareWriteCommand(idx_t nr_bytes, idx_t start_lba, idx_t offset) {
 		unique_ptr<NvmeCmdContext> nvme_cmd_ctx = make_uniq<NvmeCmdContext>();
 		nvme_cmd_ctx->nr_bytes = nr_bytes;
@@ -60,12 +62,10 @@ namespace duckdb {
 
 	////////////////////////////////////////
 
-	NvmeFileSystem::NvmeFileSystem(NvmeConfig config) : allocator(Allocator::DefaultAllocator()), device(make_uniq<NvmeDevice>(config.device_path, config.plhdls)),
-		max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size)  {
+	NvmeFileSystem::NvmeFileSystem(NvmeConfig config) : allocator(Allocator::DefaultAllocator()), device(make_uniq<NvmeDevice>(config.device_path, config.plhdls)), max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size)  {
 	}
 
-	NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device) : allocator(Allocator::DefaultAllocator()), device(std::move(device)),
-		max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size) {
+	NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device) : allocator(Allocator::DefaultAllocator()), device(std::move(device)), max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size) {
 	}
 
 	unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener) {
@@ -319,7 +319,7 @@ namespace duckdb {
 
 		FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ;
 		unique_ptr<FileHandle> fh = OpenFile(NVMEFS_GLOBAL_METADATA_PATH, flags);
-		unique_ptr<NvmeCmdContext> cmd_ctx =
+		unique_ptr<CmdContext> cmd_ctx =
 			fh->Cast<NvmeFileHandle>().PrepareReadCommand(bytes_to_read, NVMEFS_GLOBAL_METADATA_LOCATION, 0);
 
 		if(memcmp(buffer, NVMEFS_MAGIC_BYTES, nr_bytes_magic) == 0){
@@ -332,14 +332,14 @@ namespace duckdb {
 		return std::move(global);
 	}
 
-	void NvmeFileSystem::WriteMetadata(GlobalMetadata *global) {
+	void NvmeFileSystem::WriteMetadata(GlobalMetadata &global) {
 		idx_t nr_bytes_magic = sizeof(NVMEFS_MAGIC_BYTES);
 		idx_t nr_bytes_global = sizeof(GlobalMetadata);
 		idx_t bytes_to_write = nr_bytes_magic + nr_bytes_global;
 
 		data_ptr_t buffer = allocator.AllocateData(bytes_to_write);
 		memcpy(buffer, NVMEFS_MAGIC_BYTES, nr_bytes_magic);
-		memcpy(buffer + nr_bytes_magic, global, nr_bytes_global);
+		memcpy(buffer + nr_bytes_magic, &global, nr_bytes_global);
 
 		FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
 		unique_ptr<FileHandle> fh = OpenFile(NVMEFS_GLOBAL_METADATA_PATH, flags);
@@ -352,7 +352,7 @@ namespace duckdb {
 	}
 
 	void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
-		NvmeCmdContext &ctx = static_cast<NvmeCmdContext>(context);
+		NvmeCmdContext &ctx = static_cast<NvmeCmdContext&>(context);
 		MetadataType type = GetMetadataType(ctx.filepath);
 		bool write = false;
 

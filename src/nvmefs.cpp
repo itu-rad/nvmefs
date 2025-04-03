@@ -1,46 +1,9 @@
-#include "include/nvmefs.hpp"
-#include "duckdb/common/string_util.hpp"
-#include <libxnvme.h>
+#include "nvmefs.hpp"
 
 namespace duckdb {
-
-/***************************
- * NvmeFileHandle
- ****************************/
-
-NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, uint8_t plid_idx, xnvme_dev *device,
-                               uint8_t plid_count, FileOpenFlags flags, bool internal_fileHandle)
-    : FileHandle(file_system, path, flags) {
-	// Get placemenet handle indentifier and create placement idenetifier
-	// Inspiration: https://github.com/xnvme/xnvme/blob/be52a634c139647b14940ba8a3ff254d6b1ca8c4/tools/xnvme.c#L833
-	this->cursor_offset = 0;
-	this->device = device;
-	this->internal_fileHandle = internal_fileHandle;
-
-	struct xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
-	uint32_t nsid = xnvme_dev_get_nsid(device);
-
-	struct xnvme_spec_ruhs *ruhs = nullptr;
-	uint32_t ruhs_nbytes = sizeof(*ruhs) + plid_count + sizeof(struct xnvme_spec_ruhs_desc);
-
-	ruhs = (struct xnvme_spec_ruhs *)xnvme_buf_alloc(device, ruhs_nbytes);
-	memset(ruhs, 0, ruhs_nbytes);
-
-	xnvme_nvm_mgmt_recv(&ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
-
-	uint16_t phid = ruhs->desc[plid_idx].pi;
-
-	this->placement_identifier_count = plid_count;
-	this->placement_identifier = phid << 16;
-
-	xnvme_buf_free(device, ruhs);
+NvmeFileHandle::NvmeFileHandle(FileSystem &file_system, string path, FileOpenFlags flags)
+    : FileHandle(file_system, path, flags), cursor_offset(0) {
 }
-
-NvmeFileHandle::~NvmeFileHandle() {
-	if (!internal_fileHandle) {
-		xnvme_dev_close(device);
-	}
-};
 
 void NvmeFileHandle::Read(void *buffer, idx_t nr_bytes, idx_t location) {
 	file_system.Read(*this, buffer, nr_bytes, location);
@@ -58,6 +21,38 @@ void NvmeFileHandle::Sync() {
 	file_system.FileSync(*this);
 }
 
+void NvmeFileHandle::Close() {
+}
+
+unique_ptr<CmdContext> NvmeFileHandle::PrepareWriteCommand(idx_t nr_bytes, idx_t start_lba, idx_t offset) {
+	unique_ptr<NvmeCmdContext> nvme_cmd_ctx = make_uniq<NvmeCmdContext>();
+	nvme_cmd_ctx->nr_bytes = nr_bytes;
+	nvme_cmd_ctx->filepath = path;
+	nvme_cmd_ctx->offset = offset;
+	nvme_cmd_ctx->start_lba = start_lba;
+	nvme_cmd_ctx->nr_lbas = CalculateRequiredLBACount(nr_bytes);
+
+	return std::move(nvme_cmd_ctx);
+}
+
+unique_ptr<CmdContext> NvmeFileHandle::PrepareReadCommand(idx_t nr_bytes, idx_t start_lba, idx_t offset) {
+	unique_ptr<NvmeCmdContext> nvme_cmd_ctx = make_uniq<NvmeCmdContext>();
+	nvme_cmd_ctx->nr_bytes = nr_bytes;
+	nvme_cmd_ctx->filepath = path;
+	nvme_cmd_ctx->offset = offset;
+	nvme_cmd_ctx->start_lba = start_lba;
+	nvme_cmd_ctx->nr_lbas = CalculateRequiredLBACount(nr_bytes);
+
+	return std::move(nvme_cmd_ctx);
+}
+
+idx_t NvmeFileHandle::CalculateRequiredLBACount(idx_t nr_bytes) {
+	NvmeFileSystem &nvmefs = file_system.Cast<NvmeFileSystem>();
+	DeviceGeometry geo = nvmefs.GetDevice().GetDeviceGeometry();
+	idx_t lba_size = geo.lba_size;
+	return (nr_bytes + lba_size - 1) / lba_size;
+}
+
 void NvmeFileHandle::SetFilePointer(idx_t location) {
 	cursor_offset = location;
 }
@@ -66,205 +61,463 @@ idx_t NvmeFileHandle::GetFilePointer() {
 	return cursor_offset;
 }
 
-/// @brief Calculates the amount of LBAs required to store the given number of bytes
-/// @param lba_size The size of a single LBA
-/// @param nr_bytes The number of bytes to store
-/// @return The number of LBAs required to store the given number of bytes
-int64_t CalculateRequiredLBACount(uint32_t lba_size, uint64_t nr_bytes) {
+////////////////////////////////////////
 
-	return (nr_bytes + lba_size - 1) / lba_size; // Round up to nearest LBA
+NvmeFileSystem::NvmeFileSystem(NvmeConfig config)
+    : allocator(Allocator::DefaultAllocator()), device(make_uniq<NvmeDevice>(config.device_path, config.plhdls)),
+      max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size) {
 }
 
-unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareWriteCommand(int64_t nr_bytes) {
-
-	D_ASSERT(nr_bytes > 0);
-
-	xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
-	uint32_t nsid = xnvme_dev_get_nsid(device);
-
-	ctx.cmd.common.cdw13 = placement_identifier;
-
-	const xnvme_geo *geo = xnvme_dev_get_geo(device);
-
-	unique_ptr<NvmeCmdContext> nvme_ctx = make_uniq<NvmeCmdContext>();
-	nvme_ctx->ctx = ctx;
-	nvme_ctx->namespace_id = nsid;
-	nvme_ctx->number_of_lbas = CalculateRequiredLBACount(geo->lba_nbytes, nr_bytes);
-
-	return std::move(nvme_ctx);
-}
-
-unique_ptr<NvmeCmdContext> NvmeFileHandle::PrepareReadCommand(int64_t nr_bytes) {
-
-	D_ASSERT(nr_bytes > 0);
-
-	xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
-	uint32_t nsid = xnvme_dev_get_nsid(device);
-
-	ctx.cmd.common.cdw13 = placement_identifier;
-
-	const xnvme_geo *geo = xnvme_dev_get_geo(device);
-
-	unique_ptr<NvmeCmdContext> nvme_ctx = make_uniq<NvmeCmdContext>();
-	nvme_ctx->ctx = ctx;
-	nvme_ctx->namespace_id = nsid;
-	nvme_ctx->number_of_lbas = CalculateRequiredLBACount(geo->lba_nbytes, nr_bytes);
-
-	return std::move(nvme_ctx);
-}
-
-nvme_buf_ptr NvmeFileHandle::AllocateDeviceBuffer(int64_t nr_bytes) {
-	return xnvme_buf_alloc(device, nr_bytes);
-}
-
-void NvmeFileHandle::FreeDeviceBuffer(nvme_buf_ptr buffer) {
-	xnvme_buf_free(device, buffer);
-}
-
-/***************************
- * NvmeFileSystem
- ****************************/
-
-NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref) : proxy_filesystem(proxy_ref) {
-	allocated_paths.push_back("nvmefs:///tmp");
-	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
-}
-
-NvmeFileSystem::NvmeFileSystem(NvmeFileSystemProxy &proxy_ref, const string &dev_path, const uint64_t placement_handls) : proxy_filesystem(proxy_ref), device_path(dev_path), plhdls(placement_handls) {
-	allocated_paths.push_back("nvmefs:///tmp");
-	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
+NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device)
+    : allocator(Allocator::DefaultAllocator()), device(std::move(device)), max_temp_size(config.max_temp_size),
+      max_wal_size(config.max_wal_size) {
 }
 
 unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags,
                                                 optional_ptr<FileOpener> opener) {
-	// Create NvmeFileHandler
-	auto xnvme_opts = xnvme_opts_default();
-	xnvme_dev *device = xnvme_dev_open(device_path.c_str(), &xnvme_opts);
-
-	// If device is not opened then we should fail... for now return null
-	if (!device) {
-		xnvme_cli_perr("xnvme_dev_open()", errno);
-		return nullptr;
-	}
-
-	// Get and add placement identifier for path
-	uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
-
-	unique_ptr<NvmeFileHandle> file_handler =
-	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plhdls, flags, false);
-
-	return std::move(file_handler);
-}
-
-unique_ptr<MetadataFileHandle> NvmeFileSystem::OpenMetadataFile(FileHandle &handle, string path, FileOpenFlags flags) {
-
-	// Get FDP placement identifier specifically for metadata
-	uint8_t placement_identifier_index = GetPlacementIdentifierIndexOrDefault(path);
-
-	// Cast handle to NvmeFileHandle to get access to specical context
-	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
-	xnvme_dev *device = fh.device;
-	uint8_t plid_count = fh.placement_identifier_count;
-
-	unique_ptr<NvmeFileHandle> file_handler =
-	    make_uniq<NvmeFileHandle>(proxy_filesystem, path, placement_identifier_index, device, plid_count, flags, true);
-
-	return std::move(file_handler);
-}
-
-/*
- * Get placement identifier for path. If path is not allocated
- * to a specific placement identifier index then return default placement identifier
- */
-uint8_t NvmeFileSystem::GetPlacementIdentifierIndexOrDefault(const string &path) {
-	int8_t placement_identifier_index = 0; // Set to default index for now
-	for (auto &path_prefix : allocated_paths) {
-		// Check if path starts with path_prefix
-		if (StringUtil::StartsWith(path, path_prefix)) {
-			// Get placement identifier index
-			placement_identifier_index = allocated_placement_identifiers[path_prefix];
-			break;
+	bool internal = StringUtil::Equals(NVMEFS_GLOBAL_METADATA_PATH.data(), path.data());
+	if (!internal && !TryLoadMetadata()) {
+		if (GetMetadataType(path) != MetadataType::DATABASE) {
+			throw IOException("No database is attached");
+		} else {
+			InitializeMetadata(path);
 		}
 	}
-
-	return placement_identifier_index;
+	unique_ptr<FileHandle> handle = make_uniq<NvmeFileHandle>(*this, path, flags);
+	return std::move(handle);
 }
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	ReadInternal(handle, buffer, nr_bytes, location, 0);
+	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
+	DeviceGeometry geo = device->GetDeviceGeometry();
+
+	idx_t cursor_offset = SeekPosition(handle);
+	location += cursor_offset;
+	idx_t start_lba = GetLBA(handle.path, location);
+	idx_t in_block_offset = location % geo.lba_size;
+	unique_ptr<CmdContext> cmd_ctx = fh.PrepareReadCommand(nr_bytes, start_lba, in_block_offset);
+
+	device->Read(buffer, *cmd_ctx);
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	// fall-back - throw away number of LBA's written
-	WriteInternal(handle, buffer, nr_bytes, location, 0);
+	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
+	DeviceGeometry geo = device->GetDeviceGeometry();
+
+	idx_t cursor_offset = SeekPosition(handle);
+	location += cursor_offset;
+	idx_t start_lba = GetLBA(fh.path, location);
+	idx_t in_block_offset = location % geo.lba_size;
+	unique_ptr<CmdContext> cmd_ctx = fh.PrepareWriteCommand(nr_bytes, start_lba, in_block_offset);
+
+	idx_t written_lbas = device->Write(buffer, *cmd_ctx);
+	UpdateMetadata(*cmd_ctx);
 }
 
-uint64_t NvmeFileSystem::WriteInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
-                                       idx_t in_block_offset) {
-	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
-
-	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareWriteCommand(nr_bytes);
-	D_ASSERT(nvme_ctx->number_of_lbas > 0);
-	D_ASSERT((in_block_offset == 0 && nvme_ctx->number_of_lbas > 1) ||
-	         (in_block_offset >= 0 &&
-	          nvme_ctx->number_of_lbas == 1)); // We only support in-block writing of a single block... for now
-
-	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
-	if (in_block_offset > 0) {
-		D_ASSERT(in_block_offset + nr_bytes < NVME_BLOCK_SIZE);           // Be sure that the write fits within a block
-		Read(handle, dev_buffer, nvme_ctx->number_of_lbas, location_lba); // Reads the whole block
-	}
-
-	memcpy(dev_buffer, buffer + in_block_offset, nr_bytes);
-
-	int err = xnvme_nvm_write(&nvme_ctx->ctx, nvme_ctx->namespace_id, location_lba, nvme_ctx->number_of_lbas - 1,
-	                          dev_buffer, nullptr);
-	if (err) {
-		// TODO: Handle error
-		xnvme_cli_perr("xnvme_nvm_write()", err);
-		throw IOException("Error writing to NVMe device");
-	}
-
-	nvme_handle.FreeDeviceBuffer(dev_buffer);
-
-	return nvme_ctx->number_of_lbas;
+int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
+	Read(handle, buffer, nr_bytes, 0);
+	return nr_bytes;
 }
 
-uint64_t NvmeFileSystem::ReadInternal(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location_lba,
-                                      idx_t in_block_offset) {
-
-	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
-
-	unique_ptr<NvmeCmdContext> nvme_ctx = nvme_handle.PrepareReadCommand(nr_bytes);
-	D_ASSERT(nvme_ctx->number_of_lbas > 0);
-
-	nvme_buf_ptr dev_buffer = nvme_handle.AllocateDeviceBuffer(nr_bytes);
-
-	int err = xnvme_nvm_read(&nvme_ctx->ctx, nvme_ctx->namespace_id, location_lba, nvme_ctx->number_of_lbas - 1,
-	                         dev_buffer, nullptr);
-	if (err) {
-		// TODO: Handle error
-		throw IOException("Error reading from NVMe device");
-	}
-
-	// Copy the data from the device buffer to the output buffer. We apply the offset, to read from the specific
-	// location within the block and only return that particular data
-	memcpy(buffer, dev_buffer + in_block_offset, nr_bytes);
-	nvme_handle.FreeDeviceBuffer(dev_buffer);
-
-	return nvme_ctx->number_of_lbas;
+int64_t NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes) {
+	Write(handle, buffer, nr_bytes, 0);
+	return nr_bytes;
 }
 
-bool NvmeFileSystem::CanHandleFile(const string &path) {
-	return StringUtil::StartsWith(path, NVMEFS_PATH_PREFIX);
+bool NvmeFileSystem::CanHandleFile(const string &fpath) {
+	return StringUtil::StartsWith(fpath, NVMEFS_PATH_PREFIX);
+}
+
+bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener> opener) {
+	if (!TryLoadMetadata()) {
+		return false;
+	}
+
+	MetadataType type = GetMetadataType(filename);
+	string path_no_ext = StringUtil::GetFileStem(filename);
+	string db_path_no_ext = StringUtil::GetFileStem(metadata->db_path);
+
+	bool exists = false;
+
+	switch (type) {
+
+	case WAL:
+		/*
+		    Intentional fall-through. Need to remove the '.wal' and db ext
+		    before evaluating if the file exists.
+
+		    Example:
+		        string filename = "test.db.wal"
+
+		        // After two calls to GetFileStem would be: "test"
+
+		*/
+		path_no_ext = StringUtil::GetFileStem(path_no_ext);
+
+	case DATABASE:
+		if (StringUtil::Equals(path_no_ext.data(), db_path_no_ext.data())) {
+			uint64_t start_lba = GetStartLBA(filename);
+			uint64_t location_lba = GetLocationLBA(filename);
+
+			if ((location_lba - start_lba) > 0) {
+				exists = true;
+			}
+		} else {
+			throw IOException("Not possible to have multiple databases");
+		}
+		break;
+	case TEMPORARY:
+		if (file_to_temp_meta.count(filename)) {
+			exists = true;
+		}
+		break;
+	default:
+		throw IOException("No such metadata type");
+		break;
+	}
+
+	return exists;
+}
+
+int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
+	DeviceGeometry geo = device->GetDeviceGeometry();
+	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
+	MetadataType type = GetMetadataType(fh.path);
+
+	idx_t start_lba = GetStartLBA(fh.path);
+	idx_t location_lba = GetLocationLBA(fh.path);
+
+	return (location_lba - start_lba) * geo.lba_size;
+}
+
+void NvmeFileSystem::FileSync(FileHandle &handle) {
+	// No need for sync. All writes are directly to disk.
+}
+
+bool NvmeFileSystem::OnDiskFile(FileHandle &handle) {
+	// No remote accesses to disks. We only interact with physical device, i.e. always disk "files".
+	return true;
+}
+
+bool NvmeFileSystem::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
+	// The directory exists if metadata exists
+	if (TryLoadMetadata()) {
+		return true;
+	}
+
+	return false;
+}
+
+void NvmeFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener) {
+	// We only support removal of temporary directory
+	MetadataType type = GetMetadataType(directory);
+	if (type == MetadataType::TEMPORARY) {
+		file_to_temp_meta.clear();
+	} else {
+		throw IOException("Cannot delete unknown directory");
+	}
+}
+
+void NvmeFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
+	// All necessary directories (i.e. tmp and main folder) is already created
+	// if metadata is present
+	if (TryLoadMetadata()) {
+		throw IOException("No directories can exist when there is no metadata");
+	}
+}
+
+void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
+	MetadataType type = GetMetadataType(filename);
+
+	switch (type) {
+	case WAL:
+		// Reset the location poitner (next lba to write to) to the start effectively removing the wal
+		metadata->write_ahead_log.location = metadata->write_ahead_log.start;
+		break;
+
+	case TEMPORARY:
+		// TODO: how do we determine if we need to move the temp metadata location pointer
+		// and what about fragmentation? is it even possible to use ringbuffer technique?
+		file_to_temp_meta.erase(filename);
+		break;
+	default:
+		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
+		break;
+	}
 }
 
 void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
-	handle.Cast<NvmeFileHandle>().SetFilePointer(location);
+	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
+	DeviceGeometry geo = device->GetDeviceGeometry();
+	// We only support seek to start of an LBA block
+	D_ASSERT(location % geo.lba_size == 0);
+
+	idx_t start_bound = GetStartLBA(nvme_handle.path);
+	idx_t end_bound = GetEndLBA(nvme_handle.path);
+	idx_t max_seek_bound = (end_bound - start_bound) * geo.lba_size;
+
+	if (location >= max_seek_bound) {
+		throw IOException("Seek location is out of bounds");
+	}
+
+	nvme_handle.SetFilePointer(location);
 }
 
 idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 	return handle.Cast<NvmeFileHandle>().GetFilePointer();
 }
+Device &NvmeFileSystem::GetDevice() {
+	return *device;
+}
 
+bool NvmeFileSystem::TryLoadMetadata() {
+	if (metadata) {
+		return true;
+	}
+
+	unique_ptr<GlobalMetadata> global = ReadMetadata();
+	if (global) {
+		metadata = std::move(global);
+		return true;
+	}
+
+	return false;
+}
+
+void NvmeFileSystem::InitializeMetadata(const string &filename) {
+	// We only support database paths/names up to 100 characters (this includes NVMEFS_PATH_PREFIX)
+	if (filename.length() > 100) {
+		throw IOException("Database name is too long.");
+	}
+
+	DeviceGeometry geo = device->GetDeviceGeometry();
+
+	idx_t temp_start = (geo.lba_count - 1) - (max_temp_size / geo.lba_size);
+	idx_t wal_lba_count = max_wal_size / geo.lba_size;
+	idx_t wal_start = (temp_start - 1) - wal_lba_count;
+
+	Metadata meta_temp = {.start = temp_start, .end = geo.lba_count - 1, .location = temp_start};
+	Metadata meta_wal = {.start = wal_start, .end = temp_start - 1, .location = wal_start};
+	// 1 is the first LBA because 0 is used for device metadata (global metadata)
+	Metadata meta_db = {.start = 1, .end = wal_start - 1, .location = 1};
+
+	unique_ptr<GlobalMetadata> global = make_uniq<GlobalMetadata>(GlobalMetadata {});
+
+	global->database = meta_db;
+	global->write_ahead_log = meta_wal;
+	global->temporary = meta_temp;
+	global->db_path_size = filename.length();
+
+	strncpy(global->db_path, filename.data(), filename.length());
+	global->db_path[100] = '\0';
+
+	WriteMetadata(*global);
+
+	metadata = std::move(global);
+}
+
+unique_ptr<GlobalMetadata> NvmeFileSystem::ReadMetadata() {
+	idx_t nr_bytes_magic = sizeof(NVMEFS_MAGIC_BYTES);
+	idx_t nr_bytes_global = sizeof(GlobalMetadata);
+	idx_t bytes_to_read = nr_bytes_magic + nr_bytes_global;
+
+	data_ptr_t buffer = allocator.AllocateData(bytes_to_read);
+	unique_ptr<GlobalMetadata> global = nullptr;
+
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ;
+	unique_ptr<FileHandle> fh = OpenFile(NVMEFS_GLOBAL_METADATA_PATH, flags);
+	unique_ptr<CmdContext> cmd_ctx =
+	    fh->Cast<NvmeFileHandle>().PrepareReadCommand(bytes_to_read, NVMEFS_GLOBAL_METADATA_LOCATION, 0);
+
+	device->Read(buffer, *cmd_ctx);
+
+	if (memcmp(buffer, NVMEFS_MAGIC_BYTES, nr_bytes_magic) == 0) {
+		global = make_uniq<GlobalMetadata>(GlobalMetadata {});
+		memcpy(global.get(), buffer + nr_bytes_magic, nr_bytes_global);
+	}
+
+	allocator.FreeData(buffer, bytes_to_read);
+
+	return std::move(global);
+}
+
+void NvmeFileSystem::WriteMetadata(GlobalMetadata &global) {
+	idx_t nr_bytes_magic = sizeof(NVMEFS_MAGIC_BYTES);
+	idx_t nr_bytes_global = sizeof(GlobalMetadata);
+	idx_t bytes_to_write = nr_bytes_magic + nr_bytes_global;
+
+	data_ptr_t buffer = allocator.AllocateData(bytes_to_write);
+	memcpy(buffer, NVMEFS_MAGIC_BYTES, nr_bytes_magic);
+	memcpy(buffer + nr_bytes_magic, &global, nr_bytes_global);
+
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = OpenFile(NVMEFS_GLOBAL_METADATA_PATH, flags);
+	unique_ptr<CmdContext> cmd_ctx =
+	    fh->Cast<NvmeFileHandle>().PrepareWriteCommand(bytes_to_write, NVMEFS_GLOBAL_METADATA_LOCATION, 0);
+
+	device->Write(buffer, *cmd_ctx);
+
+	allocator.FreeData(buffer, bytes_to_write);
+}
+
+void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
+	NvmeCmdContext &ctx = static_cast<NvmeCmdContext &>(context);
+	MetadataType type = GetMetadataType(ctx.filepath);
+	bool write = false;
+
+	switch (type) {
+	case MetadataType::WAL:
+		if (ctx.start_lba >= metadata->write_ahead_log.location) {
+			metadata->write_ahead_log.location = ctx.start_lba + ctx.nr_lbas;
+			write = true;
+		}
+		break;
+	case MetadataType::TEMPORARY:
+		if (ctx.start_lba >= metadata->temporary.location) {
+			metadata->temporary.location = ctx.start_lba + ctx.nr_lbas;
+			write = true;
+			TemporaryFileMetadata tfmeta = file_to_temp_meta[ctx.filepath];
+			file_to_temp_meta[ctx.filepath] = {tfmeta.start, metadata->temporary.location - 1};
+		}
+		break;
+	case MetadataType::DATABASE:
+		if (ctx.start_lba >= metadata->database.location) {
+			metadata->database.location = ctx.start_lba + ctx.nr_lbas;
+			write = true;
+		}
+		break;
+	default:
+		throw InvalidInputException("no such metadatatype");
+	}
+
+	if (write) {
+		WriteMetadata(*metadata);
+	}
+}
+
+MetadataType NvmeFileSystem::GetMetadataType(const string &filename) {
+	if (StringUtil::Contains(filename, ".wal")) {
+		return MetadataType::WAL;
+	} else if (StringUtil::Contains(filename, "/tmp")) {
+		return MetadataType::TEMPORARY;
+	} else if (StringUtil::Contains(filename, ".db")) {
+		return MetadataType::DATABASE;
+	} else {
+		throw InvalidInputException("Unknown file format");
+	}
+}
+
+idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t location) {
+	idx_t lba {};
+	MetadataType type = GetMetadataType(filename);
+	DeviceGeometry geo = device->GetDeviceGeometry();
+
+	idx_t lba_location = location / geo.lba_size;
+
+	switch (type) {
+	case MetadataType::WAL:
+		if (lba_location < metadata->write_ahead_log.location) {
+			lba = metadata->write_ahead_log.start + lba_location;
+		} else {
+			lba = metadata->write_ahead_log.location;
+		}
+		break;
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta;
+		if (file_to_temp_meta.count(filename)) {
+			tfmeta = file_to_temp_meta[filename];
+			lba = tfmeta.start + lba_location;
+		} else {
+			lba = metadata->temporary.location;
+			tfmeta = {.start = lba, .end = lba};
+			file_to_temp_meta[filename] = tfmeta;
+		}
+	} break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.start + lba_location;
+		break;
+	default:
+		throw InvalidInputException("No such metadata type");
+		break;
+	}
+
+	return lba;
+}
+
+idx_t NvmeFileSystem::GetStartLBA(const string &filename) {
+	idx_t lba {};
+	MetadataType type = GetMetadataType(filename);
+
+	switch (type) {
+	case MetadataType::WAL:
+		lba = metadata->write_ahead_log.start;
+		break;
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta;
+		if (file_to_temp_meta.count(filename)) {
+			tfmeta = file_to_temp_meta[filename];
+			lba = tfmeta.start;
+		} else {
+			lba = metadata->temporary.location;
+			tfmeta = {.start = lba, .end = lba};
+			file_to_temp_meta[filename] = tfmeta;
+		}
+	} break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.start;
+		break;
+	default:
+		throw InvalidInputException("No such metadata type");
+		break;
+	}
+
+	return lba;
+}
+
+idx_t NvmeFileSystem::GetLocationLBA(const string &filename) {
+	idx_t lba {};
+	MetadataType type = GetMetadataType(filename);
+
+	switch (type) {
+	case MetadataType::WAL:
+		lba = metadata->write_ahead_log.location;
+		break;
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[filename];
+		// Consider temp file lba 0 to 4. end = 4. proper size of tempfile is 5 lbas, so end+1
+		lba = tfmeta.end + 1;
+	} break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.location;
+		break;
+	default:
+		throw InvalidInputException("No such metadata type");
+		break;
+	}
+
+	return lba;
+}
+
+idx_t NvmeFileSystem::GetEndLBA(const string &filename) {
+	idx_t lba {};
+	MetadataType type = GetMetadataType(filename);
+
+	switch (type) {
+	case MetadataType::WAL:
+		lba = metadata->write_ahead_log.end;
+		break;
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[filename];
+		lba = tfmeta.end;
+	} break;
+	case MetadataType::DATABASE:
+		lba = metadata->database.end;
+		break;
+	default:
+		throw InvalidInputException("No such metadata type");
+		break;
+	}
+
+	return lba;
+}
 } // namespace duckdb

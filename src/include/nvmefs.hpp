@@ -92,7 +92,7 @@ public:
 	void Seek(FileHandle &handle, idx_t location) override;
 	idx_t SeekPosition(FileHandle &handle) override;
 
-	const Device& GetDevice();
+	Device& GetDevice();
 
 	string GetName() const {
 		return "NvmeFileSystem";
@@ -103,7 +103,7 @@ private:
 	void InitializeMetadata(const string &filename);
 	unique_ptr<GlobalMetadata> ReadMetadata();
 	void WriteMetadata(GlobalMetadata &global);
-	void UpdateMetadata(CmdContext Context);
+	void UpdateMetadata(CmdContext &Context);
 	MetadataType GetMetadataType(const string &filename);
 	idx_t GetLBA(const string &filename, idx_t location);
 	idx_t GetStartLBA(const string &filename);

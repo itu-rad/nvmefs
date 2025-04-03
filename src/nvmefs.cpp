@@ -45,7 +45,8 @@ namespace duckdb {
 
 	idx_t NvmeFileHandle::CalculateRequiredLBACount(idx_t nr_bytes) {
 		NvmeFileSystem& nvmefs = file_system.Cast<NvmeFileSystem>();
-		idx_t lba_size = nvmefs.GetDevice().GetDeviceGeometry().lba_size;
+		DeviceGeometry geo = nvmefs.GetDevice().GetDeviceGeometry();
+		idx_t lba_size = geo.lba_size;
 		return (nr_bytes + lba_size - 1) / lba_size;
 	}
 
@@ -61,18 +62,20 @@ namespace duckdb {
 
 	NvmeFileSystem::NvmeFileSystem(NvmeConfig config) : allocator(Allocator::DefaultAllocator()), device(make_uniq<NvmeDevice>(config.device_path, config.plhdls)),
 		max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size)  {
-		// Load metadata
-		if(!TryLoadMetadata()) {
-			InitializeMetadata()
-		}
 	}
 
 	NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device) : allocator(Allocator::DefaultAllocator()), device(std::move(device)),
 		max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size) {
-		// Load metadata
 	}
 
 	unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener) {
+		if(!TryLoadMetadata()) {
+			if (GetMetadataType(path) != MetadataType::DATABASE){
+				throw IOException("No database is attached");
+			} else {
+				InitializeMetadata(path);
+			}
+		}
 		unique_ptr<FileHandle> handle = make_uniq<NvmeFileHandle>(*this, path, flags);
 		return std::move(handle);
 	}
@@ -87,7 +90,7 @@ namespace duckdb {
 		idx_t in_block_offset = location % geo.lba_size;
 		unique_ptr<CmdContext> cmd_ctx = fh.PrepareReadCommand(nr_bytes, start_lba, in_block_offset);
 
-		device->Read(buffer, cmd_ctx);
+		device->Read(buffer, *cmd_ctx);
 	}
 
 	void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
@@ -100,8 +103,8 @@ namespace duckdb {
 		idx_t in_block_offset = location % geo.lba_size;
 		unique_ptr<CmdContext> cmd_ctx = fh.PrepareWriteCommand(nr_bytes, start_lba, in_block_offset);
 
-		idx_t written_lbas = device->Write(buffer, cmd_ctx);
-		UpdateMetadata(cmd_ctx);
+		idx_t written_lbas = device->Write(buffer, *cmd_ctx);
+		UpdateMetadata(*cmd_ctx);
 	}
 
 	int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
@@ -118,8 +121,12 @@ namespace duckdb {
 		return StringUtil::StartsWith(fpath, NVMEFS_PATH_PREFIX);
 	}
 
-	bool NvmeFileSystem::FileExists(const string &filename, optional_ptr opener) {
-		MetadataType type = GetMetadataType(filname);
+	bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener> opener) {
+		if (!TryLoadMetadata()) {
+			return false;
+		}
+
+		MetadataType type = GetMetadataType(filename);
 		string path_no_ext = StringUtil::GetFileStem(filename);
 		string db_path_no_ext = StringUtil::GetFileStem(metadata->db_path);
 
@@ -180,14 +187,14 @@ namespace duckdb {
 		// No need for sync. All writes are directly to disk.
 	}
 
-	void NvmeFileSystem::OnDiskFile(FileHandle &handle) {
+	bool NvmeFileSystem::OnDiskFile(FileHandle &handle) {
 		// No remote accesses to disks. We only interact with physical device, i.e. always disk "files".
 		return true;
 	}
 
 	bool NvmeFileSystem::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
 		// The directory exists if metadata exists
-		if(metadata){
+		if(TryLoadMetadata()){
 			return true;
 		}
 
@@ -207,13 +214,13 @@ namespace duckdb {
 	void NvmeFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
 		// All necessary directories (i.e. tmp and main folder) is already created
 		// if metadata is present
-		if (!metadata) {
+		if (TryLoadMetadata()) {
 			throw IOException("No directories can exist when there is no metadata");
 		}
 	}
 
 	void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
-		MetadataType type = GetMetadataType(filename)
+		MetadataType type = GetMetadataType(filename);
 
 		switch (type) {
 		case WAL:
@@ -252,8 +259,8 @@ namespace duckdb {
 	idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 		return handle.Cast<NvmeFileHandle>().GetFilePointer();
 	}
-	const Device& NvmeFileSystem::GetDevice() {
-		return device.get();
+	Device& NvmeFileSystem::GetDevice() {
+		return *device;
 	}
 
 	bool NvmeFileSystem::TryLoadMetadata() {
@@ -292,17 +299,17 @@ namespace duckdb {
 		global->database = meta_db;
 		global->write_ahead_log = meta_wal;
 		global->temporary = meta_temp;
-		global->db_path_size = path.length();
+		global->db_path_size = filename.length();
 
-		strncpy(global->db_path, path.data(), path.length());
+		strncpy(global->db_path, filename.data(), filename.length());
 		global->db_path[100] = '\0';
 
-		WriteMetadata(global.get());
+		WriteMetadata(*global);
 
 		metadata = std::move(global);
 	}
 
-	uniqure_ptr<GlobalMetadata> NvmeFileSystem::ReadMetadata() {
+	unique_ptr<GlobalMetadata> NvmeFileSystem::ReadMetadata() {
 		idx_t nr_bytes_magic = sizeof(NVMEFS_MAGIC_BYTES);
 		idx_t nr_bytes_global = sizeof(GlobalMetadata);
 		idx_t bytes_to_read = nr_bytes_magic + nr_bytes_global;
@@ -325,7 +332,7 @@ namespace duckdb {
 		return std::move(global);
 	}
 
-	void NvmeFileSystem::WriteMetadata(GlobalMetadata &global) {
+	void NvmeFileSystem::WriteMetadata(GlobalMetadata *global) {
 		idx_t nr_bytes_magic = sizeof(NVMEFS_MAGIC_BYTES);
 		idx_t nr_bytes_global = sizeof(GlobalMetadata);
 		idx_t bytes_to_write = nr_bytes_magic + nr_bytes_global;
@@ -339,14 +346,14 @@ namespace duckdb {
 		unique_ptr<CmdContext> cmd_ctx =
 			fh->Cast<NvmeFileHandle>().PrepareWriteCommand(bytes_to_write, NVMEFS_GLOBAL_METADATA_LOCATION, 0);
 
-		device->Write(buffer, cmd_ctx);
+		device->Write(buffer, *cmd_ctx);
 
 		allocator.FreeData(buffer, bytes_to_write);
 	}
 
-	void NvmeFileSystem::UpdateMetadata(CmdContext context) {
-		NvmeCmdContext ctx = static_cast<NvmeCmdContext>(context);
-		MetadataType type = GetMetadataType(cmd_ctx.filepath);
+	void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
+		NvmeCmdContext &ctx = static_cast<NvmeCmdContext>(context);
+		MetadataType type = GetMetadataType(ctx.filepath);
 		bool write = false;
 
 		switch (type) {
@@ -361,7 +368,7 @@ namespace duckdb {
 				metadata->temporary.location = ctx.start_lba + ctx.nr_lbas;
 				write = true;
 				TemporaryFileMetadata tfmeta = file_to_temp_meta[ctx.filepath];
-				file_to_lba[ctx.filepath] = {tfmeta.start, metadata->temporary.location - 1};
+				file_to_temp_meta[ctx.filepath] = {tfmeta.start, metadata->temporary.location - 1};
 			}
 			break;
 		case MetadataType::DATABASE:
@@ -375,7 +382,7 @@ namespace duckdb {
 		}
 
 		if (write) {
-			WriteMetadata(metadata.get())
+			WriteMetadata(*metadata);
 		}
 	}
 
@@ -458,6 +465,8 @@ namespace duckdb {
 				throw InvalidInputException("No such metadata type");
 				break;
 			}
+
+		return lba;
 	}
 
 	idx_t NvmeFileSystem::GetLocationLBA(const string &filename) {
@@ -482,6 +491,8 @@ namespace duckdb {
 			throw InvalidInputException("No such metadata type");
 			break;
 		}
+
+		return lba;
 	}
 
 	idx_t NvmeFileSystem::GetEndLBA(const string &filename) {

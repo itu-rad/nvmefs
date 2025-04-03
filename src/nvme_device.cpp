@@ -18,8 +18,8 @@ namespace duckdb {
 		xnvme_dev_close(device);
 	}
 
-	idx_t NvmeDevice::Write(void *buffer, CmdContext context) {
-		NvmeCmdContext ctx = static_cast<NvmeCmdContext>(context);
+	idx_t NvmeDevice::Write(void *buffer, CmdContext &context) {
+		NvmeCmdContext &ctx = static_cast<NvmeCmdContext&>(context);
 		D_ASSERT(ctx.nr_lbas > 0);
 		// We only support offset writes within a single block
 		D_ASSERT((ctx.offset == 0 && ctx.nr_lbas > 1) || (ctx.offset >= 0 && ctx.nr_lbas == 1));
@@ -48,8 +48,8 @@ namespace duckdb {
 		return ctx.nr_lbas;
 	}
 
-	idx_t NvmeDevice::Read(void *buffer, CmdContext ctx) {
-		NvmeCmdContext ctx = static_cast<NvmeCmdContext>(context);
+	idx_t NvmeDevice::Read(void *buffer, CmdContext &ctx) {
+		NvmeCmdContext &ctx = static_cast<NvmeCmdContext&>(context);
 		D_ASSERT(ctx.nr_lbas > 0);
 		// We only support offset reads within a single block
 		D_ASSERT((ctx.offset == 0 && ctx.nr_lbas > 1) || (ctx.offset >= 0 && ctx.nr_lbas == 1));

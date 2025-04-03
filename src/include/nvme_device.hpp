@@ -26,7 +26,7 @@ public:
 	/// @param start_lab The LBA to start writing from
 	/// @param offset An offset into the LBA
 	/// @return The amount of LBAs written to the device
-	idx_t Write(void *buffer, CmdContext context);
+	idx_t Write(void *buffer, CmdContext &context);
 
 	/// @brief Reads data from the device at the specified LBA position into the output buffer
 	/// @param buffer The output buffer that will contain data read from the device
@@ -35,7 +35,7 @@ public:
 	/// @param start_lab The LBA to start reading from
 	/// @param offset An offset into the LBA
 	/// @return The amount of LBAs read from the device
-	idx_t Read(void *buffer, CmdContext context);
+	idx_t Read(void *buffer, CmdContext &context);
 
 	/// @brief Fetches the geometry of the device
 	/// @return The device geometry

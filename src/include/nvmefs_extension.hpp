@@ -1,6 +1,8 @@
 #pragma once
 
 #include "duckdb.hpp"
+#include "nvmefs.hpp"
+#include "nvmefs_config.hpp"
 
 namespace duckdb {
 

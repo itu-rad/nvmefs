@@ -8,8 +8,6 @@
 #include "duckdb/main/extension_util.hpp"
 #include "duckdb/main/secret/secret_manager.hpp"
 #include "duckdb/main/settings.hpp"
-#include "nvmefs_proxy.hpp"
-#include "nvmefs_config.hpp"
 
 namespace duckdb {
 struct ConfigPrintFunctionData : public TableFunctionData {
@@ -65,7 +63,7 @@ static void AddConfig(DatabaseInstance &instance) {
 
 	// Add extension options
 	auto &fs = instance.GetFileSystem();
-	fs.RegisterSubSystem(make_uniq<NvmeFileSystemProxy>(nvmeConfig));
+	fs.RegisterSubSystem(make_uniq<NvmeFileSystem>(nvmeConfig));
 }
 
 static void LoadInternal(DatabaseInstance &instance) {

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "duckdb.hpp"
-#include "nvmefs_extension.hpp"
 
 #include <duckdb/main/secret/secret.hpp>
 
@@ -23,10 +22,11 @@ struct NvmeConfig {
 };
 
 class NvmeConfigManager {
-	public:
-		static void RegisterConfigFunctions(DatabaseInstance &instance) {CreateNvmefsSecretFunctions::Register(instance);};
-		static NvmeConfig LoadConfig(DatabaseInstance &instance);
-
+public:
+	static void RegisterConfigFunctions(DatabaseInstance &instance) {
+		CreateNvmefsSecretFunctions::Register(instance);
+	};
+	static NvmeConfig LoadConfig(DatabaseInstance &instance);
 };
 
 } // namespace duckdb

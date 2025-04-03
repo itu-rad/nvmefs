@@ -24,7 +24,7 @@ add_subdirectory(utils)
 include_directories(${CMAKE_SOURCE_DIR}/src/include)
 include_directories(${CMAKE_SOURCE_DIR}/duckdb/src/include)
 
-add_executable(nvmefs_gtest "test.cpp" "test_nvmefs_proxy.cpp")
+add_executable(nvmefs_gtest "test_nvmefs_proxy.cpp")
 
 target_link_libraries(nvmefs_gtest GTest::gtest_main ${EXTENSION_NAME} duckdb gtest_utils)
 set_target_properties(nvmefs_gtest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gtests")

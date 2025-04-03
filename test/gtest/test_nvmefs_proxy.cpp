@@ -1,7 +1,8 @@
 #include <gtest/gtest.h>
-#include "nvmefs_proxy.hpp"
+#include "nvmefs.hpp"
 #include "nvmefs_config.hpp"
 #include "utils/gtest_utils.hpp"
+#include "utils/fake_device.hpp"
 
 namespace duckdb
 {
@@ -10,19 +11,19 @@ class NoDiskInteractionTest : public testing::Test {
 	protected:
 
 		static void SetUpTestSuite() {
-			file_system = make_uniq<NvmeFileSystemProxy>(gtestutils::TEST_CONFIG);
+			file_system = make_uniq<NvmeFileSystem>(gtestutils::TEST_CONFIG, make_uniq<FakeDevice>(0));
 		}
 
-		static unique_ptr<NvmeFileSystemProxy> file_system;
+		static unique_ptr<NvmeFileSystem> file_system;
 };
 
 // provide variable to access for tests
 // instead of writing NoDiskInteractionTest::file_system in every test, just file_system
-unique_ptr<NvmeFileSystemProxy> NoDiskInteractionTest::file_system = nullptr;
+unique_ptr<NvmeFileSystem> NoDiskInteractionTest::file_system = nullptr;
 
 TEST_F(NoDiskInteractionTest, GetNameReturnsName) {
 	string result = file_system->GetName();
-	EXPECT_EQ(result, "NvmeFileSystemProxy");
+	EXPECT_EQ(result, "NvmeFileSystem");
 }
 
 TEST_F(NoDiskInteractionTest, CanHandleFileValidPathReturnsTrue) {

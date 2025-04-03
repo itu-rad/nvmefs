@@ -8,7 +8,7 @@ FakeDevice::FakeDevice(idx_t lba_count, idx_t lba_size)
 FakeDevice::~FakeDevice() {
 }
 
-idx_t FakeDevice::Write(void *buffer, CmdContext context) {
+idx_t FakeDevice::Write(void *buffer, const CmdContext &context) {
 	D_ASSERT(context.start_lba + context.nr_lbas <= geometry.lba_count);
 
 	// Get pointer to the start of the requested memory location
@@ -21,7 +21,7 @@ idx_t FakeDevice::Write(void *buffer, CmdContext context) {
 	return context.nr_lbas;
 }
 
-idx_t FakeDevice::Read(void *buffer, CmdContext context) {
+idx_t FakeDevice::Read(void *buffer, const CmdContext &context) {
 	D_ASSERT(context.start_lba + context.nr_lbas <= geometry.lba_count);
 
 	// Get pointer to the start of the requested memory location

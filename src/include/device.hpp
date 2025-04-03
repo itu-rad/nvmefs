@@ -20,8 +20,8 @@ class Device {
 	public:
 		virtual ~Device() = default;
 
-		virtual idx_t Write(void *buffer, CmdContext context);
-		virtual idx_t Read(void *buffer, CmdContext context);
+		virtual idx_t Write(void *buffer, CmdContext &context);
+		virtual idx_t Read(void *buffer, CmdContext &context);
 
 		virtual DeviceGeometry GetDeviceGeometry();
 

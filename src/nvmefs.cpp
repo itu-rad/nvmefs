@@ -69,7 +69,8 @@ namespace duckdb {
 	}
 
 	unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags, optional_ptr<FileOpener> opener) {
-		if(!TryLoadMetadata()) {
+		bool internal = StringUtil::Equals(NVMEFS_GLOBAL_METADATA_PATH.data(), path.data());
+		if(!internal && !TryLoadMetadata()) {
 			if (GetMetadataType(path) != MetadataType::DATABASE){
 				throw IOException("No database is attached");
 			} else {

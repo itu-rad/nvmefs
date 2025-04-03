@@ -3,7 +3,7 @@ import duckdb
 def test_create_database_close_and_open(device):
     """
     This tests that we can create a database with a schema and table, close it, and open it again.
-    The reason is that the database persist the data after it is closed, therefor we should be 
+    The reason is that the database persist the data after it is closed, therefore we should be 
     able to open it again and read the same data.   
     """
 

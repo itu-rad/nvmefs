@@ -66,6 +66,8 @@ idx_t NvmeDevice::Read(void *buffer, const CmdContext &context) {
 		throw IOException("Encountered error when writing to NVMe device");
 	}
 
+	memcpy(buffer, dev_buffer + ctx.offset, ctx.nr_bytes);
+
 	FreeDeviceBuffer(dev_buffer);
 
 	return ctx.nr_lbas;

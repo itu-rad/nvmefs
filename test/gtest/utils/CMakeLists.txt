@@ -1,0 +1,1 @@
+add_library(gtest_utils "gtest_utils.cpp" "gtest_utils.hpp" "fake_device.cpp" "fake_device.hpp")

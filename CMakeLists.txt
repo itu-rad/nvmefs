@@ -14,7 +14,6 @@ set(EXTENSION_SOURCES
   src/nvmefs.cpp
   src/nvmefs_config.cpp
   src/device.cpp
-  src/fake_device.cpp
   src/nvme_device.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
@@ -24,6 +23,8 @@ build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 find_library(XNVME_LIB xnvme)
 target_link_libraries(${EXTENSION_NAME} ${XNVME_LIB})
 target_link_libraries(${LOADABLE_EXTENSION_NAME} ${XNVME_LIB})
+
+add_subdirectory(test)
 
 install(
   TARGETS ${EXTENSION_NAME}

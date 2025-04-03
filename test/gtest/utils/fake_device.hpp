@@ -1,4 +1,4 @@
-#include "nvme_device.hpp"
+#include "device.hpp"
 
 namespace duckdb {
 constexpr idx_t DEFAULT_BLOCK_SIZE = 1ULL << 12;

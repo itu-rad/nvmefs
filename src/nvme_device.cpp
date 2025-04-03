@@ -37,7 +37,7 @@ namespace duckdb {
 		uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 		xnvme_cmd_ctx xnvme_ctx = PrepareWriteContext(plid_idx);
 
-		int16_t err = xnvme_nvm_write(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
+		int err = xnvme_nvm_write(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 		if (err) {
 			xnvme_cli_perr("Could not write to device with xnvme_nvme_write(): ", err);
 			throw IOException("Encountered error when writing to NVMe device");
@@ -51,23 +51,16 @@ namespace duckdb {
 	idx_t NvmeDevice::Read(void *buffer, CmdContext ctx) {
 		NvmeCmdContext ctx = static_cast<NvmeCmdContext>(context);
 		D_ASSERT(ctx.nr_lbas > 0);
-		// We only support offset writes within a single block
+		// We only support offset reads within a single block
 		D_ASSERT((ctx.offset == 0 && ctx.nr_lbas > 1) || (ctx.offset >= 0 && ctx.nr_lbas == 1));
 
 		nvme_buf_ptr dev_buffer = AllocateDeviceBuffer(ctx.nr_bytes);
-		if (offset > 0) {
-			// Check if write is fully contained within single block
-			D_ASSERT(ctx.offset + ctx.nr_bytes < geometry.lba_size);
-			// Read the whole LBA block
-			Read(dev_buffer, ctx.nr_bytes, ctx.nr_lbas, ctx.start_lba);
-		}
-		memcpy(dev_buffer, buffer + ctx.offset, ctx.nr_bytes);
 
 		uint32_t nsid = xnvme_dev_get_nsid(device);
 		uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 		xnvme_cmd_ctx xnvme_ctx = PrepareReadContext(plid_idx);
 
-		int16_t err = xnvme_nvm_write(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
+		int err = xnvme_nvm_read(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 		if (err) {
 			xnvme_cli_perr("Could not write to device with xnvme_nvme_write(): ", err);
 			throw IOException("Encountered error when writing to NVMe device");

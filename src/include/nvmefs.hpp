@@ -15,7 +15,6 @@ constexpr char NVMEFS_MAGIC_BYTES[] = "NVMEFS";
 const string NVMEFS_PATH_PREFIX = "nvmefs://";
 const string NVMEFS_GLOBAL_METADATA_PATH = "nvmefs://.global_metadata";
 
-
 enum MetadataType { DATABASE, WAL, TEMPORARY };
 
 struct Metadata {
@@ -40,7 +39,7 @@ struct TemporaryFileMetadata {
 
 class NvmeFileHandle : public FileHandle {
 
-friend class NvmeFileSystem;
+	friend class NvmeFileSystem;
 
 public:
 	NvmeFileHandle(FileSystem &file_system, string path, FileOpenFlags flags);
@@ -77,7 +76,7 @@ public:
 	~NvmeFileSystem() = default;
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
-		optional_ptr<FileOpener> opener = nullptr) override;
+	                                optional_ptr<FileOpener> opener = nullptr) override;
 	void Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	void Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) override;
 	int64_t Read(FileHandle &handle, void *buffer, int64_t nr_bytes);
@@ -94,7 +93,7 @@ public:
 	void Seek(FileHandle &handle, idx_t location) override;
 	idx_t SeekPosition(FileHandle &handle) override;
 
-	Device& GetDevice();
+	Device &GetDevice();
 
 	string GetName() const {
 		return "NvmeFileSystem";
@@ -120,4 +119,4 @@ private:
 	idx_t max_temp_size;
 	idx_t max_wal_size;
 };
-}
+} // namespace duckdb

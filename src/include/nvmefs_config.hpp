@@ -22,10 +22,11 @@ struct NvmeConfig {
 };
 
 class NvmeConfigManager {
-	public:
-		static void RegisterConfigFunctions(DatabaseInstance &instance) {CreateNvmefsSecretFunctions::Register(instance);};
-		static NvmeConfig LoadConfig(DatabaseInstance &instance);
-
+public:
+	static void RegisterConfigFunctions(DatabaseInstance &instance) {
+		CreateNvmefsSecretFunctions::Register(instance);
+	};
+	static NvmeConfig LoadConfig(DatabaseInstance &instance);
 };
 
 } // namespace duckdb

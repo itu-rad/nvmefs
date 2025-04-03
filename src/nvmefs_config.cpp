@@ -55,10 +55,9 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 
 	string device;
 	int64_t plhdls = 0;
-	//TODO: ensure that we always have value here. It is possible to not have value
+	// TODO: ensure that we always have value here. It is possible to not have value
 	uint64_t max_temp_size = static_cast<uint64_t>(config.options.maximum_swap_space);
-	uint64_t max_wal_size = 2^25; // 32 MiB
-
+	uint64_t max_wal_size = 2 ^ 25; // 32 MiB
 
 	secret_reader.TryGetSecretKeyOrSetting<string>("nvme_device_path", "nvme_device_path", device);
 	secret_reader.TryGetSecretKeyOrSetting<int64_t>("fdp_plhdls", "fdp_plhdls", plhdls);
@@ -67,8 +66,9 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 	config.AddExtensionOption("fdp_plhdls", "Amount of available placement handlers on the device",
 	                          {LogicalType::BIGINT}, Value(plhdls));
 
-
-	return NvmeConfig{.device_path=device, .plhdls=static_cast<uint64_t>(plhdls), .max_temp_size=max_temp_size, .max_wal_size=max_wal_size};
-
+	return NvmeConfig {.device_path = device,
+	                   .plhdls = static_cast<uint64_t>(plhdls),
+	                   .max_temp_size = max_temp_size,
+	                   .max_wal_size = max_wal_size};
 }
 } // namespace duckdb

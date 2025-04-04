@@ -53,4 +53,23 @@ TEST_F(NoDiskInteractionTest, CanHandleFileInvalidPathReturnsFalse) {
 	EXPECT_FALSE(result);
 }
 
+TEST_F(DiskInteractionTest, WriteAndReadData) {
+
+	// Create a file
+	string file_path = "nvmefs://test.db";
+	FileHandle file = fs->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	ASSERT_TRUE(file != nullptr);
+
+	// Write some data to the file
+	string data = "Hello, World!";
+	file->Write(data.c_str(), data.size());
+
+	// Read the data back
+	vector<char> buffer(data.size());
+	file->Read(buffer.data(), data.size());
+
+	// Check that the data is correct
+	EXPECT_EQ(string(buffer.data(), buffer.size()), data);
+}
+
 } // namespace duckdb

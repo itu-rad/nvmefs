@@ -17,8 +17,10 @@ protected:
 };
 
 class DiskInteractionTest : public testing::Test {
+
 protected:
-	static void SetUpTestSuite() {
+	DiskInteractionTest() {
+		// Set up the test environment
 		idx_t block_size = 4096;
 		idx_t page_size = 4096 * 64;
 
@@ -29,15 +31,11 @@ protected:
 		    .max_wal_size = 1ULL << 25       // 32 MiB
 		};
 
-		fs = make_uniq<NvmeFileSystem>(testConfig, make_uniq<FakeDevice>(1ULL << 30)); // 1 GiB
+		file_system = make_uniq<NvmeFileSystem>(testConfig, make_uniq<FakeDevice>(1ULL << 30)); // 1 GiB
 	}
 
-	static unique_ptr<NvmeFileSystem> fs;
+	unique_ptr<NvmeFileSystem> file_system;
 };
-
-// provide variable to access for tests
-// instead of writing DiskInteractionTest::fs in every test, just write fs
-unique_ptr<NvmeFileSystem> DiskInteractionTest::fs = nullptr;
 
 TEST_F(NoDiskInteractionTest, GetNameReturnsName) {
 	string result = file_system->GetName();
@@ -54,9 +52,5 @@ TEST_F(NoDiskInteractionTest, CanHandleFileInvalidPathReturnsFalse) {
 	bool result = file_system->CanHandleFile("test.db");
 	EXPECT_FALSE(result);
 }
-
-// TEST_F(DiskInteractionTest, FileSync) {
-// 	file_system
-// }
 
 } // namespace duckdb

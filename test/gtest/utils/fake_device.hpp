@@ -19,6 +19,6 @@ public:
 
 private:
 	const DeviceGeometry geometry;
-	vector<uint8_t> memory;
+	uint8_t *memory;
 };
 } // namespace duckdb

@@ -4,17 +4,34 @@
 #include "utils/gtest_utils.hpp"
 #include "utils/fake_device.hpp"
 
-namespace duckdb
-{
+namespace duckdb {
 
 class NoDiskInteractionTest : public testing::Test {
-	protected:
+protected:
+	static void SetUpTestSuite() {
+		file_system = make_uniq<NvmeFileSystem>(gtestutils::TEST_CONFIG, make_uniq<FakeDevice>(0));
+	}
 
-		static void SetUpTestSuite() {
-			file_system = make_uniq<NvmeFileSystem>(gtestutils::TEST_CONFIG, make_uniq<FakeDevice>(0));
-		}
+	static unique_ptr<NvmeFileSystem> file_system;
+};
 
-		static unique_ptr<NvmeFileSystem> file_system;
+class DiskInteractionTest : public testing::Test {
+protected:
+	static void SetUpTestSuite() {
+		idx_t block_size = 4096;
+		idx_t page_size = 4096 * 64;
+
+		NvmeConfig testConfig {
+		    .device_path = "/dev/ng1n1",
+		    .plhdls = 8,
+		    .max_temp_size = page_size * 10, // 1 GiB in bytes
+		    .max_wal_size = 1ULL << 25       // 32 MiB
+		};
+
+		file_system = make_uniq<NvmeFileSystem>(testConfig, make_uniq<FakeDevice>(1ULL << 30)); // 1 GiB
+	}
+
+	static unique_ptr<NvmeFileSystem> file_system;
 };
 
 // provide variable to access for tests
@@ -36,4 +53,4 @@ TEST_F(NoDiskInteractionTest, CanHandleFileInvalidPathReturnsFalse) {
 	EXPECT_FALSE(result);
 }
 
-}
+} // namespace duckdb

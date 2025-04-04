@@ -53,4 +53,33 @@ TEST_F(NoDiskInteractionTest, CanHandleFileInvalidPathReturnsFalse) {
 	EXPECT_FALSE(result);
 }
 
+TEST_F(DiskInteractionTest, OpenFileCompleteInvalidPathThrowInvalidInputException) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
+	ASSERT_THROW(file_system->OpenFile("nvmefs://test", flags), InvalidInputException);
+}
+
+TEST_F(DiskInteractionTest, OpenFileInvalidDBPathThrowIOException) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
+	ASSERT_THROW(file_system->OpenFile("nvmefs://test.wal", flags), IOException);
+}
+
+TEST_F(DiskInteractionTest, OpenFileValidDBPathThrowNoExpeception) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
+	ASSERT_NO_THROW(file_system->OpenFile("nvmefs://test.db", flags));
+}
+
+TEST_F(DiskInteractionTest, OpenFileProducesCorrectFileHandle){
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+	NvmeFileHandle& nvme_fh = fh->Cast<NvmeFileHandle>();
+	NvmeFileSystem& nvme_fs = nvme_fh.file_system.Cast<NvmeFileSystem>();
+
+
+	EXPECT_EQ(nvme_fh.path, "nvmefs://test.db");
+	EXPECT_EQ(nvme_fh.flags.OpenForWriting(), true);
+
+	// Check that underlying filesytem is the same
+	EXPECT_EQ(&nvme_fs, &*file_system);
+}
+
 } // namespace duckdb

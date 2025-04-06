@@ -162,11 +162,11 @@ TEST_F(DiskInteractionTest, WriteAndReadDataWithSeek) {
 	file->Write(data_ptr, data_size, block_location);
 
 	// Seek to the beginning of the file
-	file->Seek(block_location);
+	file->Seek(4096 * 3);
 
 	// The old 5th block should now be translated to the 0th block after seek
 	vector<char> buffer(data_size);
-	file->Read(buffer.data(), data_size, 0);
+	file->Read(buffer.data(), data_size, 4096 * 2);
 
 	// Check that the data is correct
 	EXPECT_EQ(string(buffer.data(), data_size), data_ptr);
@@ -181,6 +181,48 @@ TEST_F(DiskInteractionTest, SeekOutOfBounds) {
 
 	// Attempt to seek out of bounds
 	EXPECT_THROW(file->Seek((1ULL << 31) + 1), std::runtime_error);
+}
+
+TEST_F(DiskInteractionTest, ReadAndWriteReturningNumberOfBytes) {
+	string file_path = "nvmefs://test.db";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	ASSERT_TRUE(file != nullptr);
+
+	// Write some data to the file
+	char *data_ptr = "Hello, World!";
+	uint64_t bytes_written = file->Write(data_ptr, 13);
+
+	// Read the data
+	vector<char> buffer(13);
+	uint64_t bytes_read = file->Read(buffer.data(), 13);
+
+	// Check that the number of bytes written and read is correct
+	EXPECT_EQ(bytes_written, 13);
+	EXPECT_EQ(bytes_read, 13);
+	EXPECT_EQ(string(buffer.data(), bytes_read), data_ptr);
+}
+
+TEST_F(DiskInteractionTest, ReadWithReturnIOfBytesAfterSettingSeek) {
+	string file_path = "nvmefs://test.db";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	ASSERT_TRUE(file != nullptr);
+
+	// Write some data to the file
+	char *data_ptr = "Hello, World!";
+	file->Write(data_ptr, 13, 4096 * 64);
+
+	// Move file pointer to next duckdb page
+	file->Seek(4096 * 64);
+
+	// Read the data
+	vector<char> buffer(13);
+	uint64_t bytes_read = file->Read(buffer.data(), 13);
+
+	// Check that the number of bytes written and read is correct
+	EXPECT_EQ(bytes_read, 13);
+	EXPECT_EQ(string(buffer.data(), bytes_read), data_ptr);
 }
 
 // TODO: Think about how this should be handled when the file system defines the ranges of LBA's

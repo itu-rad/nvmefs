@@ -55,6 +55,75 @@ TEST_F(NoDiskInteractionTest, CanHandleFileInvalidPathReturnsFalse) {
 	EXPECT_FALSE(result);
 }
 
+///// With disk interactions
+
+TEST_F(DiskInteractionTest, FileExistsNoMetadataReturnFalse) {
+	bool result = file_system->FileExists("nvmefs://test.db");
+	EXPECT_FALSE(result);
+}
+
+TEST_F(DiskInteractionTest, FileExistsConfirmsDatabaseExists) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	// Ensure that there is data in the database
+	vector<char> hello_buf {'H', 'E', 'L', 'L', 'O'};
+	fh->Write(hello_buf.data(), hello_buf.size());
+
+	bool exists = file_system->FileExists("nvmefs://test.db");
+	EXPECT_TRUE(exists);
+}
+
+TEST_F(DiskInteractionTest, FileExistGivenValidWALFileReturnsTrue) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	// Ensure that there is data in the database (third block - 4096 block size)
+	vector<char> hello_buf {'H', 'E', 'L', 'L', 'O'};
+	fh->Write(hello_buf.data(), hello_buf.size());
+
+	bool exists = file_system->FileExists("nvmefs://test.db.wal");
+	EXPECT_TRUE(exists);
+}
+
+
+TEST_F(DiskInteractionTest, FileExistsThrowsIOExceptionIfMultipleDatabases) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	EXPECT_THROW(file_system->FileExists("nvmefs://xyz.db"), IOException);
+}
+
+TEST_F(DiskInteractionTest, FileExistsReturnFalseWhenTemporaryFileDoNotExists) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	bool exists = file_system->FileExists("nvmefs:///tmp/file");
+	EXPECT_FALSE(exists);
+}
+
+TEST_F(DiskInteractionTest, FileExistsReturnTrueWhenTemporaryFileExists) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	// Write something to create file
+	string hello = "hello temp";
+	vector<char> hello_buf {hello.begin(), hello.end()};
+	int bytes_to_read_write = hello.size();
+	fh = file_system->OpenFile("nvmefs:///tmp/file", flags);
+	fh->Write(hello_buf.data(), bytes_to_read_write);
+
+	// Check if it exists
+	bool exists = file_system->FileExists("nvmefs:///tmp/file");
+	EXPECT_TRUE(exists);
+
+	// Read back data
+	vector<char> buffer(bytes_to_read_write);
+	fh->Read(buffer.data(), bytes_to_read_write, 0);
+
+	EXPECT_EQ(string(buffer.begin(), buffer.end()), hello);
+}
+
 TEST_F(DiskInteractionTest, OpenFileCompleteInvalidPathThrowInvalidInputException) {
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
 	ASSERT_THROW(file_system->OpenFile("nvmefs://test", flags), InvalidInputException);

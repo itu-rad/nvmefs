@@ -2,7 +2,7 @@
 
 namespace duckdb {
 FakeDevice::FakeDevice(idx_t lba_count, idx_t lba_size)
-    : Device(), geometry(DeviceGeometry {lba_count, lba_size}), memory(new uint8_t[lba_size * lba_count]) {
+    : Device(), geometry(DeviceGeometry {lba_size, lba_count}), memory(new uint8_t[lba_size * lba_count]) {
 }
 
 FakeDevice::~FakeDevice() {

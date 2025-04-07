@@ -142,6 +142,115 @@ TEST_F(DiskInteractionTest, FileExistsReturnTrueWhenTemporaryFileExists) {
 	EXPECT_EQ(string(buffer.begin(), buffer.end()), hello);
 }
 
+TEST_F(DiskInteractionTest, DirectoryExistsNoLoadedMetadataReturnsFalse) {
+	EXPECT_FALSE(file_system->DirectoryExists("nvmefs:///tmp"));
+}
+
+TEST_F(DiskInteractionTest, DirectoryExistsMetadataLoadedReturnsTrue) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	EXPECT_TRUE(file_system->DirectoryExists("nvmefs:///tmp"));
+}
+
+TEST_F(DiskInteractionTest, RemoveDirectoryGivenTemporyDirectoyRemovesSuccessfully) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	// Write a file to temporary folder
+	string temp_filename = "nvmefs:///tmp/file";
+	vector<char> buf {'H', 'E', 'L', 'L', 'O'};
+	fh = file_system->OpenFile(temp_filename, flags);
+	fh->Write(buf.data(), buf.size());
+
+	// Verify that it exists
+	EXPECT_TRUE(file_system->FileExists(temp_filename));
+
+	// Remove tmp directory and confirm deletion
+	EXPECT_NO_THROW(file_system->RemoveDirectory("nvmefs:///tmp"));
+	EXPECT_FALSE(file_system->FileExists(temp_filename));
+}
+
+TEST_F(DiskInteractionTest, RemoveDirectoryGivenInvalidDirectoryThrowsIOException) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	EXPECT_THROW(file_system->RemoveDirectory("nvmefs://test.db/mydirectory"), IOException);
+}
+
+TEST_F(DiskInteractionTest, CreateDirectoryThrowsExpectionIfMetadataNotLoaded) {
+	EXPECT_THROW(file_system->CreateDirectory("nvmefs:///tmp"), IOException);
+}
+
+TEST_F(DiskInteractionTest, CreateDirectoryNoExceptionThrownWhenMetadataLoaded) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	EXPECT_NO_THROW(file_system->CreateDirectory("nvmefs:///tmp"));
+}
+
+
+TEST_F(DiskInteractionTest, RemoveFileGivenWALRemovesWALData) {
+	/*
+	* We are going to write two blocks to the WAL, so:
+	* | block1 = Hello | block2 = World | block3 = ? | ... blocks
+	* Next write will target block3, however we delete WAL. Hence
+	* next write will instead target block1
+	*/
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	// Write to the blocks
+	string wal_filename = "nvmefs://test.db.wal";
+	vector<char> buf_hello {'H', 'E', 'L', 'L', 'O'};
+	vector<char> buf_world {'W', 'O', 'R', 'L', 'D'};
+	fh = file_system->OpenFile(wal_filename, flags);
+	fh->Write(buf_hello.data(), buf_hello.size(), 0);
+	fh->Write(buf_world.data(), buf_world.size(), 4096); // 4096 = 1 block
+
+	// Read back and confirm
+	vector<char> res_hello(buf_hello.size());
+	vector<char> res_world(buf_world.size());
+	fh->Read(res_hello.data(), buf_hello.size(), 0);
+	fh->Read(res_world.data(), buf_world.size(), 4096);
+	EXPECT_EQ(res_hello, buf_hello);
+	EXPECT_EQ(res_world, buf_world);
+
+	// Remove WAL, write "fresh" and confirm
+	EXPECT_NO_THROW(file_system->RemoveFile(wal_filename));
+	vector<char> buf_fresh {'F', 'R', 'E', 'S', 'H'};
+	vector<char> res_fresh(buf_fresh.size());
+	fh->Write(buf_fresh.data(), buf_fresh.size());
+	fh->Read(res_fresh.data(), buf_fresh.size(), 0);
+
+	EXPECT_EQ(res_fresh, buf_fresh);
+}
+
+TEST_F(DiskInteractionTest, RemoveFileGivenValidTempFileRemovesIt) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	// Write temporary file
+	string temp_filename = "nvmefs:///tmp/file";
+	vector<char> buf {'H', 'E', 'L', 'L', 'O'};
+	fh = file_system->OpenFile(temp_filename, flags);
+	fh->Write(buf.data(), buf.size());
+
+	// Verify that it exists
+	EXPECT_TRUE(file_system->FileExists(temp_filename));
+
+	// Remove and verify deletion
+	file_system->RemoveFile(temp_filename);
+	EXPECT_FALSE(file_system->FileExists(temp_filename));
+}
+
+TEST_F(DiskInteractionTest, RemoveFileGivenPathBesidesTMPOrWALDoesNothing) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	EXPECT_NO_THROW(file_system->RemoveFile("nvmefs://test.db"));
+}
+
 TEST_F(DiskInteractionTest, OpenFileCompleteInvalidPathThrowInvalidInputException) {
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
 	ASSERT_THROW(file_system->OpenFile("nvmefs://test", flags), InvalidInputException);

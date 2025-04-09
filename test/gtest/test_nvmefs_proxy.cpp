@@ -194,7 +194,7 @@ TEST_F(DiskInteractionTest, GetFileSizeOpensTwoTemporaryFileReturnCorrectSizes) 
 
 	EXPECT_EQ(res_h, buf_h);
 
-	//Check file sizes
+	// Check file sizes
 	EXPECT_EQ(file_system->GetFileSize(*tmp_fh_1), 0);
 	EXPECT_EQ(file_system->GetFileSize(*tmp_fh_2), geo.lba_size * 1);
 }
@@ -246,14 +246,13 @@ TEST_F(DiskInteractionTest, CreateDirectoryNoExceptionThrownWhenMetadataLoaded) 
 	EXPECT_NO_THROW(file_system->CreateDirectory("nvmefs:///tmp"));
 }
 
-
 TEST_F(DiskInteractionTest, RemoveFileGivenWALRemovesWALData) {
 	/*
-	* We are going to write two blocks to the WAL, so:
-	* | block1 = Hello | block2 = World | block3 = ? | ... blocks
-	* Next write will target block3, however we delete WAL. Hence
-	* next write will instead target block1
-	*/
+	 * We are going to write two blocks to the WAL, so:
+	 * | block1 = Hello | block2 = World | block3 = ? | ... blocks
+	 * Next write will target block3, however we delete WAL. Hence
+	 * next write will instead target block1
+	 */
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
 	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
 
@@ -323,12 +322,11 @@ TEST_F(DiskInteractionTest, OpenFileValidDBPathThrowNoExpeception) {
 	ASSERT_NO_THROW(file_system->OpenFile("nvmefs://test.db", flags));
 }
 
-TEST_F(DiskInteractionTest, OpenFileProducesCorrectFileHandle){
+TEST_F(DiskInteractionTest, OpenFileProducesCorrectFileHandle) {
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_WRITE;
 	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
-	NvmeFileHandle& nvme_fh = fh->Cast<NvmeFileHandle>();
-	NvmeFileSystem& nvme_fs = nvme_fh.file_system.Cast<NvmeFileSystem>();
-
+	NvmeFileHandle &nvme_fh = fh->Cast<NvmeFileHandle>();
+	NvmeFileSystem &nvme_fs = nvme_fh.file_system.Cast<NvmeFileSystem>();
 
 	EXPECT_EQ(nvme_fh.path, "nvmefs://test.db");
 	EXPECT_EQ(nvme_fh.flags.OpenForWriting(), true);
@@ -346,16 +344,17 @@ TEST_F(DiskInteractionTest, WriteAndReadData) {
 	ASSERT_TRUE(file != nullptr);
 
 	// Write some data to the file
-	char *data_ptr = "Hello, World!";
-	int data_size = strlen(data_ptr);
-	file->Write(data_ptr, data_size, 0);
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	file->Write(data_ptr.data(), data_size, 0);
 
 	// Read the data back
 	vector<char> buffer(data_size);
 	file->Read(buffer.data(), data_size, 0);
 
 	// Check that the data is correct
-	EXPECT_EQ(string(buffer.data(), data_size), data_ptr);
+	EXPECT_EQ(string(buffer.data(), data_size), hello);
 }
 
 TEST_F(DiskInteractionTest, WriteAndReadDataDoesNotOverlapOtherCategories) {
@@ -378,17 +377,20 @@ TEST_F(DiskInteractionTest, WriteAndReadDataDoesNotOverlapOtherCategories) {
 	ASSERT_TRUE(tmp_file != nullptr);
 
 	// Write some data to the db file
-	char *db_data_ptr = "Hello, db!";
-	int db_data_size = strlen(db_data_ptr);
-	db_file->Write(db_data_ptr, db_data_size, 0);
+	string hello_db = "Hello, db!";
+	vector<char> db_data_ptr {hello_db.begin(), hello_db.end()};
+	int db_data_size = db_data_ptr.size();
+	db_file->Write(db_data_ptr.data(), db_data_size, 0);
 
-	char *wal_data_ptr = "Hello, wal!";
-	int wal_data_size = strlen(wal_data_ptr);
-	wal_file->Write(wal_data_ptr, wal_data_size, 0);
+	string hello_wal = "Hello, wal!";
+	vector<char> wal_data_ptr {hello_wal.begin(), hello_wal.end()};
+	int wal_data_size = wal_data_ptr.size();
+	wal_file->Write(wal_data_ptr.data(), wal_data_size, 0);
 
-	char *tmp_data_ptr = "Hello, tmp!";
-	int tmp_data_size = strlen(tmp_data_ptr);
-	tmp_file->Write(tmp_data_ptr, tmp_data_size, 0);
+	string hello_tmp = "Hello, tmp!";
+	vector<char> tmp_data_ptr {hello_tmp.begin(), hello_tmp.end()};
+	int tmp_data_size = tmp_data_ptr.size();
+	tmp_file->Write(tmp_data_ptr.data(), tmp_data_size, 0);
 
 	// Read the data back
 	vector<char> db_buffer(db_data_size);
@@ -401,9 +403,9 @@ TEST_F(DiskInteractionTest, WriteAndReadDataDoesNotOverlapOtherCategories) {
 	tmp_file->Read(tmp_buffer.data(), tmp_data_size, 0);
 
 	// Check that the data is correct
-	EXPECT_EQ(string(db_buffer.data(), db_data_size), db_data_ptr);
-	EXPECT_EQ(string(wal_buffer.data(), wal_data_size), wal_data_ptr);
-	EXPECT_EQ(string(tmp_buffer.data(), tmp_data_size), tmp_data_ptr);
+	EXPECT_EQ(string(db_buffer.data(), db_data_size), hello_db);
+	EXPECT_EQ(string(wal_buffer.data(), wal_data_size), hello_wal);
+	EXPECT_EQ(string(tmp_buffer.data(), tmp_data_size), hello_tmp);
 }
 
 // TODO: Make this parameterized to test different byte offsets whithin different blocks
@@ -416,16 +418,17 @@ TEST_F(DiskInteractionTest, WriteAndReadDataWithinBlock) {
 	ASSERT_TRUE(file != nullptr);
 
 	// Write some data to the file
-	char *data_ptr = "Hello, World!";
-	int data_size = strlen(data_ptr);
-	file->Write(data_ptr, data_size, 16); // Write data at the 16th byte of the device
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	file->Write(data_ptr.data(), data_size, 16); // Write data at the 16th byte of the device
 
 	// Read the data back
 	vector<char> buffer(data_size);
 	file->Read(buffer.data(), data_size, 16); // Read data from the 16th byte of the device
 
 	// Check that the data is correct
-	EXPECT_EQ(string(buffer.data(), data_size), data_ptr);
+	EXPECT_EQ(string(buffer.data(), data_size), hello);
 }
 
 TEST_F(DiskInteractionTest, WriteAndReadDataWithSeek) {
@@ -439,9 +442,10 @@ TEST_F(DiskInteractionTest, WriteAndReadDataWithSeek) {
 	idx_t block_location = 4096 * 5; // 5 blocks of 4096 bytes each
 
 	// Write some data to the file
-	char *data_ptr = "Hello, World!";
-	int data_size = strlen(data_ptr);
-	file->Write(data_ptr, data_size, block_location);
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	file->Write(data_ptr.data(), data_size, block_location);
 
 	// Seek to the beginning of the file
 	file->Seek(4096 * 3);
@@ -451,7 +455,7 @@ TEST_F(DiskInteractionTest, WriteAndReadDataWithSeek) {
 	file->Read(buffer.data(), data_size, 4096 * 2);
 
 	// Check that the data is correct
-	EXPECT_EQ(string(buffer.data(), data_size), data_ptr);
+	EXPECT_EQ(string(buffer.data(), data_size), hello);
 }
 
 TEST_F(DiskInteractionTest, SeekOutOfDeviceBounds) {
@@ -516,8 +520,10 @@ TEST_F(DiskInteractionTest, ReadAndWriteReturningNumberOfBytes) {
 	ASSERT_TRUE(file != nullptr);
 
 	// Write some data to the file
-	char *data_ptr = "Hello, World!";
-	uint64_t bytes_written = file->Write(data_ptr, 13);
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	uint64_t bytes_written = file->Write(data_ptr.data(), 13);
 
 	// Read the data
 	vector<char> buffer(13);
@@ -526,7 +532,7 @@ TEST_F(DiskInteractionTest, ReadAndWriteReturningNumberOfBytes) {
 	// Check that the number of bytes written and read is correct
 	EXPECT_EQ(bytes_written, 13);
 	EXPECT_EQ(bytes_read, 13);
-	EXPECT_EQ(string(buffer.data(), bytes_read), data_ptr);
+	EXPECT_EQ(string(buffer.data(), bytes_read), hello);
 }
 
 TEST_F(DiskInteractionTest, ReadWithReturnOfBytesAfterSettingSeek) {
@@ -536,19 +542,21 @@ TEST_F(DiskInteractionTest, ReadWithReturnOfBytesAfterSettingSeek) {
 	ASSERT_TRUE(file != nullptr);
 
 	// Write some data to the file
-	char *data_ptr = "Hello, World!";
-	file->Write(data_ptr, 13, 4096 * 64);
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	file->Write(data_ptr.data(), data_size, 4096 * 64);
 
 	// Move file pointer to next duckdb page
 	file->Seek(4096 * 64);
 
 	// Read the data
-	vector<char> buffer(13);
-	uint64_t bytes_read = file->Read(buffer.data(), 13);
+	vector<char> buffer(data_size);
+	uint64_t bytes_read = file->Read(buffer.data(), data_size);
 
 	// Check that the number of bytes written and read is correct
-	EXPECT_EQ(bytes_read, 13);
-	EXPECT_EQ(string(buffer.data(), bytes_read), data_ptr);
+	EXPECT_EQ(bytes_read, data_size);
+	EXPECT_EQ(string(buffer.data(), bytes_read), hello);
 }
 
 TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForDBFile) {
@@ -560,9 +568,10 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForDBFile) {
 	ASSERT_TRUE(file != nullptr);
 
 	// Attempt to write data out of lba range
-	char *data_ptr = "Hello, World!";
-	int data_size = strlen(data_ptr);
-	EXPECT_THROW(file->Write(data_ptr, data_size, max_lba * 4096), std::runtime_error);
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	EXPECT_THROW(file->Write(data_ptr.data(), data_size, max_lba * 4096), std::runtime_error);
 }
 
 TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForWALFile) {
@@ -578,9 +587,12 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForWALFile) {
 	ASSERT_TRUE(file != nullptr);
 
 	// Attempt to write data out of lba range
-	char *data_ptr = (char *)"Hello, World!";
+	char *data_ptr = new char[(1ULL << 25) + 4096];
 	int data_size = (1ULL << 25) + 4096;
 	EXPECT_THROW(file->Write(data_ptr, data_size, max_lba * 4096), std::runtime_error);
+
+	// Clean up
+	delete[] data_ptr;
 }
 
 TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForWALFileWithLocationInsideRange) {
@@ -618,9 +630,11 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForTmpFile) {
 	ASSERT_TRUE(file != nullptr);
 
 	// Attempt to write data out of range
-	char *data_ptr = "Hello, World!";
+	char *data_ptr = new char[4096 * 64];
 	int data_size = 4096 * 641;
 	EXPECT_THROW(file->Write(data_ptr, data_size, 0), std::runtime_error);
+
+	delete[] data_ptr;
 }
 
 TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {

@@ -111,6 +111,14 @@ private:
 	idx_t GetLocationLBA(const string &filename);
 	idx_t GetEndLBA(const string &filename);
 
+	/// @brief Checks that the start_lba is within the assigned metadata range and that lba_start+lba_count is within
+	/// the assigned metadata range
+	/// @param filename name of the file to check
+	/// @param start_lba Start LBA of the IO operation to be performed
+	/// @param lba_count Number of LBAs to be read/written
+	/// @return True if it is in range, false otherwise
+	bool IsLBAInRange(const string &filename, idx_t start_lba, idx_t lba_count);
+
 private:
 	Allocator &allocator;
 	unique_ptr<GlobalMetadata> metadata;

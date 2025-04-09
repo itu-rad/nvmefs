@@ -88,6 +88,7 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 }
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 
@@ -96,6 +97,10 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 	idx_t start_lba = GetLBA(handle.path, location);
 	idx_t in_block_offset = location % geo.lba_size;
 	unique_ptr<CmdContext> cmd_ctx = fh.PrepareReadCommand(nr_bytes, start_lba, in_block_offset);
+
+	if (!IsLBAInRange(handle.path, start_lba, cmd_ctx->nr_lbas)) {
+		throw IOException("Read out of range");
+	}
 
 	device->Read(buffer, *cmd_ctx);
 }
@@ -109,6 +114,10 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 	idx_t start_lba = GetLBA(fh.path, location);
 	idx_t in_block_offset = location % geo.lba_size;
 	unique_ptr<CmdContext> cmd_ctx = fh.PrepareWriteCommand(nr_bytes, start_lba, in_block_offset);
+
+	if (!IsLBAInRange(handle.path, start_lba, cmd_ctx->nr_lbas)) {
+		throw IOException("Read out of range");
+	}
 
 	idx_t written_lbas = device->Write(buffer, *cmd_ctx);
 	UpdateMetadata(*cmd_ctx);
@@ -517,5 +526,38 @@ idx_t NvmeFileSystem::GetEndLBA(const string &filename) {
 	}
 
 	return lba;
+}
+
+bool NvmeFileSystem::IsLBAInRange(const string &filename, idx_t start_lba, idx_t lba_count) {
+
+	MetadataType type = GetMetadataType(filename);
+	Metadata current_metadata;
+
+	switch (type) {
+	case MetadataType::WAL:
+		current_metadata = metadata->write_ahead_log;
+		break;
+	case MetadataType::TEMPORARY:
+		current_metadata = metadata->temporary;
+		break;
+	case MetadataType::DATABASE:
+		current_metadata = metadata->database;
+		break;
+	default:
+		throw InvalidInputException("No such metadata type");
+		break;
+	}
+
+	// Check if the LBA start location is within the range of the metadata range
+	if ((start_lba < current_metadata.start || start_lba > current_metadata.end)) {
+		return false;
+	}
+
+	// Check that if the lba is in range that we are not going to read or write out of range
+	if ((start_lba + lba_count) > current_metadata.end) {
+		return false;
+	}
+
+	return true;
 }
 } // namespace duckdb

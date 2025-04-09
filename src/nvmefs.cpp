@@ -376,7 +376,7 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 			metadata->temporary.location = ctx.start_lba + ctx.nr_lbas;
 			write = true;
 			TemporaryFileMetadata tfmeta = file_to_temp_meta[ctx.filepath];
-			file_to_temp_meta[ctx.filepath] = {tfmeta.start, metadata->temporary.location - 1};
+			file_to_temp_meta[ctx.filepath] = {tfmeta.start, metadata->temporary.location};
 		}
 		break;
 	case MetadataType::DATABASE:

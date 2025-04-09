@@ -143,17 +143,16 @@ bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener>
 
 	case WAL:
 		/*
-		    Intentional fall-through. Need to remove the '.wal' and db ext
-		    before evaluating if the file exists.
-
+		    Need to remove the '.wal' and db ext before evaluating if the file exists.
 		    Example:
 		        string filename = "test.db.wal"
-
-		        // After two calls to GetFileStem would be: "test"
-
+		    	// After two calls to GetFileStem would be: "test"
 		*/
 		path_no_ext = StringUtil::GetFileStem(path_no_ext);
-
+		if (StringUtil::Equals(path_no_ext.data(), db_path_no_ext.data())) {
+			exists = true;
+		}
+		break;
 	case DATABASE:
 		if (StringUtil::Equals(path_no_ext.data(), db_path_no_ext.data())) {
 			uint64_t start_lba = GetStartLBA(filename);
@@ -221,7 +220,7 @@ void NvmeFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileO
 void NvmeFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
 	// All necessary directories (i.e. tmp and main folder) is already created
 	// if metadata is present
-	if (TryLoadMetadata()) {
+	if (!TryLoadMetadata()) {
 		throw IOException("No directories can exist when there is no metadata");
 	}
 }
@@ -377,7 +376,7 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 			metadata->temporary.location = ctx.start_lba + ctx.nr_lbas;
 			write = true;
 			TemporaryFileMetadata tfmeta = file_to_temp_meta[ctx.filepath];
-			file_to_temp_meta[ctx.filepath] = {tfmeta.start, metadata->temporary.location - 1};
+			file_to_temp_meta[ctx.filepath] = {tfmeta.start, metadata->temporary.location};
 		}
 		break;
 	case MetadataType::DATABASE:
@@ -484,8 +483,7 @@ idx_t NvmeFileSystem::GetLocationLBA(const string &filename) {
 		break;
 	case MetadataType::TEMPORARY: {
 		TemporaryFileMetadata tfmeta = file_to_temp_meta[filename];
-		// Consider temp file lba 0 to 4. end = 4. proper size of tempfile is 5 lbas, so end+1
-		lba = tfmeta.end + 1;
+		lba = tfmeta.end;
 	} break;
 	case MetadataType::DATABASE:
 		lba = metadata->database.location;

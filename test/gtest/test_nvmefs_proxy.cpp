@@ -88,11 +88,6 @@ TEST_F(DiskInteractionTest, FileExistsConfirmsDatabaseExists) {
 	EXPECT_TRUE(exists);
 }
 
-/*
-* TODO: Figure out if we need the if check in fileexists database case, and why.
-* Right now we have fallthrough, but the location of start and location will be the same for WAL before any
-* writes. Hence, this will always be false. We should include a check for WAL or something or
-* completely handle it in its own case.
 TEST_F(DiskInteractionTest, FileExistGivenValidWALFileReturnsTrue) {
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
 	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
@@ -103,7 +98,6 @@ TEST_F(DiskInteractionTest, FileExistGivenValidWALFileReturnsTrue) {
 	bool exists = file_system->FileExists("nvmefs://test.db.wal");
 	EXPECT_TRUE(exists);
 }
-*/
 
 TEST_F(DiskInteractionTest, FileExistsThrowsIOExceptionIfMultipleDatabases) {
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
@@ -140,6 +134,69 @@ TEST_F(DiskInteractionTest, FileExistsReturnTrueWhenTemporaryFileExists) {
 	fh->Read(buffer.data(), bytes_to_read_write, 0);
 
 	EXPECT_EQ(string(buffer.begin(), buffer.end()), hello);
+}
+
+TEST_F(DiskInteractionTest, GetFileSizeDbWithThreeBlocksReturnsThreeBlocksInBytes) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// Read and Write three blocks
+	vector<char> buf_h {'H', 'E', 'L', 'L', 'O'};
+	vector<char> buf_w {'W', 'O', 'R', 'L', 'D'};
+	vector<char> buf_s {'S', 'M', 'I', 'L', 'E'};
+
+	fh->Write(buf_h.data(), buf_h.size(), geo.lba_size * 0);
+	fh->Write(buf_w.data(), buf_w.size(), geo.lba_size * 1);
+	fh->Write(buf_s.data(), buf_s.size(), geo.lba_size * 2);
+
+	vector<char> res_h(buf_h.size());
+	vector<char> res_w(buf_w.size());
+	vector<char> res_s(buf_s.size());
+
+	fh->Read(res_h.data(), buf_h.size(), geo.lba_size * 0);
+	fh->Read(res_w.data(), buf_w.size(), geo.lba_size * 1);
+	fh->Read(res_s.data(), buf_s.size(), geo.lba_size * 2);
+
+	EXPECT_EQ(res_h, buf_h);
+	EXPECT_EQ(res_w, buf_w);
+	EXPECT_EQ(res_s, buf_s);
+
+	// Ensure correct file size of database
+	int64_t expected = geo.lba_size * 3;
+	int64_t result = file_system->GetFileSize(*fh);
+
+	EXPECT_EQ(result, expected);
+}
+
+TEST_F(DiskInteractionTest, GetFileSizeWALWithNoEntriesReturnZeroBytes) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+	fh = file_system->OpenFile("nvmefs://test.db.wal", flags);
+
+	EXPECT_EQ(file_system->GetFileSize(*fh), 0);
+}
+
+TEST_F(DiskInteractionTest, GetFileSizeOpensTwoTemporaryFileReturnCorrectSizes) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// Open two temporary files, write to the second
+	unique_ptr<FileHandle> tmp_fh_1 = file_system->OpenFile("nvmefs:///tmp/file1", flags);
+	unique_ptr<FileHandle> tmp_fh_2 = file_system->OpenFile("nvmefs:///tmp/file2", flags);
+
+	vector<char> buf_h {'H', 'E', 'L', 'L', 'O'};
+	tmp_fh_2->Write(buf_h.data(), buf_h.size(), geo.lba_size * 0);
+	vector<char> res_h(buf_h.size());
+	tmp_fh_2->Read(res_h.data(), buf_h.size(), geo.lba_size * 0);
+
+	EXPECT_EQ(res_h, buf_h);
+
+	//Check file sizes
+	EXPECT_EQ(file_system->GetFileSize(*tmp_fh_1), 0);
+	EXPECT_EQ(file_system->GetFileSize(*tmp_fh_2), geo.lba_size * 1);
 }
 
 TEST_F(DiskInteractionTest, DirectoryExistsNoLoadedMetadataReturnsFalse) {

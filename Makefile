@@ -17,8 +17,7 @@ run:
 dealloc-device:
 	@sh ./scripts/dealloc_device.sh
 
-gtest:
-	GEN=ninja make release
+gtest: release
 	@./build/release/gtests/nvmefs_gtest
 
 clean-gtest: clean gtest

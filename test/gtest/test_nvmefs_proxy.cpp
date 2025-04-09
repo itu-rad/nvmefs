@@ -623,4 +623,37 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForTmpFile) {
 	EXPECT_THROW(file->Write(data_ptr, data_size, 0), std::runtime_error);
 }
 
+TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
+	// Create a file
+	string file_path =
+	    StringUtil::Format("nvmefs://test.db/tmp/duckdb_temp_storage_%d-%llu.tmp", DEFAULT_BLOCK_ALLOC_SIZE, 0);
+
+	// Ensure that metadata is created
+	file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	ASSERT_TRUE(file != nullptr);
+
+	// Attempt to write data out of range
+	int data_size = 4096 * 64; // One page
+	char *data_ptr = new char[data_size];
+
+	for (int i = 0; i < 5; i++) {
+		file->Write(data_ptr, data_size, i * data_size);
+	}
+
+	string hello = "Hello, World!";
+	vector<char> write_buffer {hello.begin(), hello.end()};
+	file->Write(write_buffer.data(), write_buffer.size(), data_size * 3);
+
+	vector<char> read_buffer(write_buffer.size());
+	file->Read(read_buffer.data(), read_buffer.size(), data_size * 3);
+
+	// Check that the data is correct
+	EXPECT_EQ(string(read_buffer.data(), read_buffer.size()), hello);
+
+	delete[] data_ptr;
+}
+
 } // namespace duckdb

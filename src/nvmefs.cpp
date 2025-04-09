@@ -221,7 +221,7 @@ void NvmeFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileO
 void NvmeFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
 	// All necessary directories (i.e. tmp and main folder) is already created
 	// if metadata is present
-	if (TryLoadMetadata()) {
+	if (!TryLoadMetadata()) {
 		throw IOException("No directories can exist when there is no metadata");
 	}
 }

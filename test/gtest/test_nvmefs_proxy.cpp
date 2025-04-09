@@ -465,6 +465,50 @@ TEST_F(DiskInteractionTest, SeekOutOfDeviceBounds) {
 	EXPECT_THROW(file->Seek((1ULL << 31) + 1), std::runtime_error);
 }
 
+TEST_F(DiskInteractionTest, SeekOutOfDBMetadataBounds) {
+	// Create a file
+	string file_path = "nvmefs://test.db";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	ASSERT_TRUE(file != nullptr);
+
+	// Attempt to seek out of bounds
+	EXPECT_THROW(file->Seek((1ULL << 31) + 1), std::runtime_error);
+}
+
+TEST_F(DiskInteractionTest, SeekOutOfWALMetadataBounds) {
+
+	const uint64_t max_lba = 261503;
+	// Ensure that metadata is created
+	file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	// Create a file
+	const string file_path = "nvmefs://test.db.wal";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	ASSERT_TRUE(file != nullptr);
+
+	// Attempt to seek out of bounds
+	EXPECT_THROW(file->Seek((1 << 25) + 1), std::runtime_error);
+}
+
+TEST_F(DiskInteractionTest, SeekOutOfTmpMetadataBounds) {
+
+	file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	// Create a file
+	string file_path =
+	    StringUtil::Format("nvmefs://test.db/tmp/duckdb_temp_storage_%d-%llu.tmp", DEFAULT_BLOCK_ALLOC_SIZE, 0);
+
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	ASSERT_TRUE(file != nullptr);
+
+	// Attempt to seek out of bounds
+	EXPECT_THROW(file->Seek(4096),
+	             std::runtime_error); // It should throw an error because nothing has been written so far in the file?
+}
+
 TEST_F(DiskInteractionTest, ReadAndWriteReturningNumberOfBytes) {
 	string file_path = "nvmefs://test.db";
 	unique_ptr<FileHandle> file =
@@ -485,7 +529,7 @@ TEST_F(DiskInteractionTest, ReadAndWriteReturningNumberOfBytes) {
 	EXPECT_EQ(string(buffer.data(), bytes_read), data_ptr);
 }
 
-TEST_F(DiskInteractionTest, ReadWithReturnIOfBytesAfterSettingSeek) {
+TEST_F(DiskInteractionTest, ReadWithReturnOfBytesAfterSettingSeek) {
 	string file_path = "nvmefs://test.db";
 	unique_ptr<FileHandle> file =
 	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
@@ -539,7 +583,29 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForWALFile) {
 	EXPECT_THROW(file->Write(data_ptr, data_size, max_lba * 4096), std::runtime_error);
 }
 
-TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForTmpFileWhenLocationIsWithinRange) {
+TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForWALFileWithLocationInsideRange) {
+	// Create a file
+	const string file_path = "nvmefs://test.db.wal";
+	const uint64_t max_lba = 261503;
+
+	// Ensure that metadata is created
+	file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	ASSERT_TRUE(file != nullptr);
+
+	// Attempt to write data out of lba range
+	int data_size = 4096 * 64;
+	char *data_ptr = new char[4096 * 64];
+	for (int i = 0; i < 128; i++) {
+		file->Write(data_ptr, data_size, i * data_size);
+	}
+
+	EXPECT_THROW(file->Write(data_ptr, data_size, data_size * 128), std::runtime_error);
+}
+
+TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForTmpFile) {
 	// Create a file
 	string file_path =
 	    StringUtil::Format("nvmefs://test.db/tmp/duckdb_temp_storage_%d-%llu.tmp", DEFAULT_BLOCK_ALLOC_SIZE, 0);
@@ -553,7 +619,7 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForTmpFileWhenLoca
 
 	// Attempt to write data out of range
 	char *data_ptr = "Hello, World!";
-	int data_size = 4096 * 640;
+	int data_size = 4096 * 641;
 	EXPECT_THROW(file->Write(data_ptr, data_size, 0), std::runtime_error);
 }
 

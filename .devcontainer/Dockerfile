@@ -6,4 +6,6 @@ RUN bash -e ./toolbox/pkgs/ubuntu-jammy.sh
 
 RUN rm -rf /usr/local/vcpkg
 
+ENV GEN=ninja
+
 CMD ["bash"]

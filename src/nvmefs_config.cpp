@@ -71,6 +71,7 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 	config.AddExtensionOption("nvme_device_path", "Path to NVMe device", {LogicalType::VARCHAR}, Value(device));
 	config.AddExtensionOption("fdp_plhdls", "Amount of available placement handlers on the device",
 	                          {LogicalType::BIGINT}, Value(plhdls));
+	config.AddExtensionOption("backend", "xnvme backend used for IO", {LogicalType::VARCHAR}, Value(backend));
 
 	return NvmeConfig {.device_path = device,
 					   .backend = SanatizeBackend(backend),

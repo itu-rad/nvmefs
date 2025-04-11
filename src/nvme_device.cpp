@@ -220,7 +220,7 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 
 	queue_lock.lock();
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
-	queue_lock.lock();
+	queue_lock.unlock();
 
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();
@@ -271,7 +271,7 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 
 	queue_lock.lock();
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
-	queue_lock.lock();
+	queue_lock.unlock();
 
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();

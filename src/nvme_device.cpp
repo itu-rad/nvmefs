@@ -2,7 +2,7 @@
 
 namespace duckdb {
 
-std::mutex NvmeDevice::queue_lock;
+std::recursive_mutex NvmeDevice::queue_lock;
 
 NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend, const bool async)
     : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async) {

@@ -108,7 +108,7 @@ private:
 	DeviceGeometry geometry;
 	const string backend;
 	const bool async;
-	static std::mutex queue_lock;
+	static std::recursive_mutex queue_lock;
 	CallbackArgs cb_args;
 };
 

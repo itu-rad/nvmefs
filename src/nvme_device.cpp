@@ -232,6 +232,12 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	std::future_status status;
 	std::chrono::milliseconds interval = std::chrono::milliseconds(25);
 
+	int err = xnvme_nvm_read(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
+	if (err) {
+		xnvme_cli_perr("Could not submit command to queue with xnvme_nvme_read(): ", err);
+		throw IOException("Encountered error when writing to NVMe device");
+	}
+
 	do {
 		status = fut.wait_for(interval);
 		if(status != std::future_status::ready) {
@@ -245,11 +251,6 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 		}
 	} while (status != std::future_status::ready);
 
-	int err = xnvme_nvm_read(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
-	if (err) {
-		xnvme_cli_perr("Could not write to device with xnvme_nvme_write(): ", err);
-		throw IOException("Encountered error when writing to NVMe device");
-	}
 
 	memcpy(buffer, dev_buffer + ctx.offset, ctx.nr_bytes);
 
@@ -283,6 +284,12 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	std::future_status status;
 	std::chrono::milliseconds interval = std::chrono::milliseconds(25);
 
+	int err = xnvme_nvm_write(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
+	if (err) {
+		xnvme_cli_perr("Could not submit command to queue with xnvme_nvme_write(): ", err);
+		throw IOException("Encountered error when writing to NVMe device");
+	}
+
 	do {
 		status = fut.wait_for(interval);
 		if(status != std::future_status::ready) {
@@ -295,12 +302,6 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 			queue_lock.unlock();
 		}
 	} while (status != std::future_status::ready);
-
-	int err = xnvme_nvm_read(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
-	if (err) {
-		xnvme_cli_perr("Could not write to device with xnvme_nvme_write(): ", err);
-		throw IOException("Encountered error when writing to NVMe device");
-	}
 
 	FreeDeviceBuffer(dev_buffer);
 

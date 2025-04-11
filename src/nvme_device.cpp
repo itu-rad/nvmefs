@@ -31,10 +31,10 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 }
 
 NvmeDevice::~NvmeDevice() {
-	xnvme_dev_close(device);
 	if (async) {
 		xnvme_queue_term(queue);
 	}
+	xnvme_dev_close(device);
 }
 
 idx_t NvmeDevice::Write(void *buffer, const CmdContext &context) {

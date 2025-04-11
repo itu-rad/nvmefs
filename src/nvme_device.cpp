@@ -4,6 +4,7 @@ namespace duckdb {
 NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend, const bool async)
     : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async) {
 	xnvme_opts opts = xnvme_opts_default();
+	PrepareOpts(opts);
 	device = xnvme_dev_open(device_path.c_str(), &opts);
 	if (!device) {
 		xnvme_cli_perr("xnvme_dev_open()", errno);
@@ -146,5 +147,16 @@ xnvme_cmd_ctx NvmeDevice::PrepareReadContext(idx_t plid_idx) {
 	xnvme_buf_free(device, ruhs);
 
 	return ctx;
+}
+
+void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
+	if(this->async){
+		opts.async = this->backend.data();
+		if (StringUtil::Equals(this->backend.data(),"io_uring_cmd")){
+			opts.sync = "nvme";
+		}
+	} else {
+		opts.sync = this->backend.data();
+	}
 }
 } // namespace duckdb

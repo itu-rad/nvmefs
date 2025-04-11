@@ -76,6 +76,9 @@ private:
 	/// @return A xnvme command context
 	xnvme_cmd_ctx PrepareReadContext(idx_t plid_idx);
 
+	/// @brief Specifies the backend and sync/async used for the device
+	/// @param opts xNVMe options
+	void PrepareOpts(xnvme_opts &opts);
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
 	xnvme_dev *device;

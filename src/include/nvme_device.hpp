@@ -5,11 +5,19 @@
 #include "device.hpp"
 #include <libxnvme.h>
 #include <mutex>
+#include <future>
+#include <chrono>
 
 namespace duckdb {
 
 typedef void *nvme_buf_ptr;
 static constexpr idx_t XNVME_QUEUE_DEPTH = 1 << 4;
+static constexpr std::chrono::milliseconds POKE_MAX_BACKOFF_TIME = std::chrono::milliseconds(200);
+
+struct CallbackArgs {
+	std::unordered_map<struct xnvme_cmd_ctx*, std::promise<void>> notifier;
+	std::mutex map_lock;
+};
 
 struct NvmeDeviceGeometry : public DeviceGeometry {};
 struct NvmeCmdContext : public CmdContext {
@@ -82,7 +90,14 @@ private:
 	/// @param opts xNVMe options
 	void PrepareOpts(xnvme_opts &opts);
 
-	static void CommandCallback(struct xnvme_cmd_ctx *ctx, void *args);
+	static void CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args);
+
+	idx_t ReadAsync(void *buffer, const CmdContext &context);
+	idx_t WriteAsync(void *buffer, const CmdContext &context);
+
+	void PrepareAsyncReadContext(xnvme_cmd_ctx &ctx, idx_t plid_idx);
+	void PrepareAsyncWriteContext(xnvme_cmd_ctx &ctx, idx_t plid_idx);
+
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
@@ -94,6 +109,7 @@ private:
 	const string backend;
 	const bool async;
 	static std::mutex queue_lock;
+	CallbackArgs cb_args;
 };
 
 } // namespace duckdb

@@ -11,12 +11,27 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 		throw InternalException("Unable to open device");
 	}
 
+	// Initialize the xnvme queue for asynchronous IO
+	queue = nullptr;
+	if (async) {
+		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queue);
+		if (err) {
+			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
+		}
+	}
+
+	// Set the callback function for completed commands. No callback arguments, hence last argument equal to NULL
+	xnvme_queue_set_cb(queue, CommandCallback, NULL);
+
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 	geometry = LoadDeviceGeometry();
 }
 
 NvmeDevice::~NvmeDevice() {
 	xnvme_dev_close(device);
+	if (async) {
+		xnvme_queue_term(queue);
+	}
 }
 
 idx_t NvmeDevice::Write(void *buffer, const CmdContext &context) {
@@ -158,5 +173,18 @@ void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
 	} else {
 		opts.sync = this->backend.data();
 	}
+}
+
+void NvmeDevice::CommandCallback(struct xnvme_cmd_ctx *ctx, void *args) {
+	if (xnvme_cmd_ctx_cpl_status(ctx)) {
+		xnvme_cli_pinf("Command did not complete successfully");
+		xnvme_cmd_ctx_pr(ctx, XNVME_PR_DEF);
+	} else {
+		xnvme_cli_pinf("Command completed successfully");
+	}
+
+	queue_lock.lock();
+	xnvme_queue_put_cmd_ctx(ctx->async.queue, ctx);
+	queue_lock.unlock();
 }
 } // namespace duckdb

@@ -4,10 +4,12 @@
 #include "duckdb/common/string_util.hpp"
 #include "device.hpp"
 #include <libxnvme.h>
+#include <mutex>
 
 namespace duckdb {
 
 typedef void *nvme_buf_ptr;
+static constexpr idx_t XNVME_QUEUE_DEPTH = 1 << 4;
 
 struct NvmeDeviceGeometry : public DeviceGeometry {};
 struct NvmeCmdContext : public CmdContext {
@@ -79,14 +81,19 @@ private:
 	/// @brief Specifies the backend and sync/async used for the device
 	/// @param opts xNVMe options
 	void PrepareOpts(xnvme_opts &opts);
+
+	static void CommandCallback(struct xnvme_cmd_ctx *ctx, void *args);
+
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
 	xnvme_dev *device;
+	xnvme_queue *queue;
 	const string dev_path;
 	const idx_t plhdls;
 	DeviceGeometry geometry;
 	const string backend;
 	const bool async;
+	static std::mutex queue_lock;
 };
 
 } // namespace duckdb

@@ -194,8 +194,6 @@ void NvmeDevice::CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args) {
 	if (xnvme_cmd_ctx_cpl_status(ctx)) {
 		xnvme_cli_pinf("Command did not complete successfully");
 		xnvme_cmd_ctx_pr(ctx, XNVME_PR_DEF);
-	} else {
-		xnvme_cli_pinf("Command completed successfully");
 	}
 
 	// Put command context back to queue, and notify the future

@@ -265,7 +265,9 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	// We only support offset reads within a single block
 	D_ASSERT((ctx.offset == 0 && ctx.nr_lbas > 1) || (ctx.offset >= 0 && ctx.nr_lbas == 1));
 
+	// Prepare buffer
 	nvme_buf_ptr dev_buffer = AllocateDeviceBuffer(ctx.nr_bytes);
+	memcpy(dev_buffer, buffer + ctx.offset, ctx.nr_bytes);
 
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);

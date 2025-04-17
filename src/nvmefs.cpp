@@ -220,13 +220,13 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 		switch (type)
 		{
 		case MetadataType::WAL:
-			metadata->write_ahead_log.location = new_lba_location;
+			metadata->write_ahead_log.location = metadata->write_ahead_log.start + new_lba_location;
 			break;
 		case MetadataType::DATABASE:
-			metadata->database.location = new_lba_location;
+			metadata->database.location = metadata->database.start + new_lba_location;
 			break;
 		case MetadataType::TEMPORARY:
-			file_to_temp_meta[nvme_handle.path].end = new_lba_location;
+			file_to_temp_meta[nvme_handle.path].end = file_to_temp_meta[nvme_handle.path].start + new_lba_location;
 			break;
 		default:
 			throw InvalidInputException("Unknown metadata type");

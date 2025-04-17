@@ -207,6 +207,34 @@ bool NvmeFileSystem::OnDiskFile(FileHandle &handle) {
 	return true;
 }
 
+void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
+	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
+	int64_t current_size = GetFileSize(nvme_handle);
+
+	// TODO: error when size is too big?
+	// What happens when we truncate a temp file? It is going to be fragmented?
+	if(new_size <= current_size){
+		MetadataType type = GetMetadataType(nvme_handle.path);
+		idx_t new_lba_location = nvme_handle.CalculateRequiredLBACount(new_size);
+
+		switch (type)
+		{
+		case MetadataType::WAL:
+			metadata->write_ahead_log.location = new_lba_location;
+			break;
+		case MetadataType::DATABASE:
+			metadata->database.location = new_lba_location;
+			break;
+		case MetadataType::TEMPORARY:
+			file_to_temp_meta[nvme_handle.path].end = new_lba_location;
+			break;
+		default:
+			throw InvalidInputException("Unknown metadata type");
+			break;
+		}
+	}
+}
+
 bool NvmeFileSystem::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
 	// The directory exists if metadata exists
 	if (TryLoadMetadata()) {

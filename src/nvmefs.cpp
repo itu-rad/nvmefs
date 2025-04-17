@@ -211,8 +211,6 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 	int64_t current_size = GetFileSize(nvme_handle);
 
-	// TODO: error when size is too big?
-	// What happens when we truncate a temp file? It is going to be fragmented?
 	if(new_size <= current_size){
 		MetadataType type = GetMetadataType(nvme_handle.path);
 		idx_t new_lba_location = nvme_handle.CalculateRequiredLBACount(new_size);
@@ -226,6 +224,7 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 			metadata->database.location = metadata->database.start + new_lba_location;
 			break;
 		case MetadataType::TEMPORARY:
+			// TODO: Handle fragmentation? Truncating a file that not have been allocated last
 			file_to_temp_meta[nvme_handle.path].end = file_to_temp_meta[nvme_handle.path].start + new_lba_location;
 			break;
 		default:

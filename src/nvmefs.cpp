@@ -232,6 +232,8 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 			throw InvalidInputException("Unknown metadata type");
 			break;
 		}
+	} else {
+		throw InvalidInputException("new_size is bigger than the current file size.");
 	}
 }
 

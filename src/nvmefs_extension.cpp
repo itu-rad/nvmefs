@@ -24,7 +24,7 @@ static void ConfigPrint(ClientContext &context, TableFunctionInput &data_p, Data
 		return;
 	}
 
-	vector<string> settings {"nvme_device_path", "fdp_plhdls", "temp_directory"};
+	vector<string> settings {"nvme_device_path", "fdp_plhdls", "temp_directory", "backend"};
 	idx_t chunk_count = 0;
 
 	for (string setting : settings) {

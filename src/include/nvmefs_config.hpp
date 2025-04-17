@@ -16,6 +16,8 @@ public:
 
 struct NvmeConfig {
 	string device_path;
+	string backend;
+	bool async;
 	uint64_t plhdls;
 	uint64_t max_temp_size;
 	uint64_t max_wal_size;
@@ -27,6 +29,10 @@ public:
 		CreateNvmefsSecretFunctions::Register(instance);
 	};
 	static NvmeConfig LoadConfig(DatabaseInstance &instance);
+
+private:
+	static bool IsAsynchronousBackend(const string &backend);
+	static string SanatizeBackend(const string &backend);
 };
 
 } // namespace duckdb

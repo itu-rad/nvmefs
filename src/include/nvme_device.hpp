@@ -4,10 +4,20 @@
 #include "duckdb/common/string_util.hpp"
 #include "device.hpp"
 #include <libxnvme.h>
+#include <mutex>
+#include <future>
+#include <chrono>
 
 namespace duckdb {
 
 typedef void *nvme_buf_ptr;
+static constexpr idx_t XNVME_QUEUE_DEPTH = 1 << 4;
+static constexpr std::chrono::milliseconds POKE_MAX_BACKOFF_TIME = std::chrono::milliseconds(200);
+
+struct CallbackArgs {
+	std::unordered_map<struct xnvme_cmd_ctx*, std::promise<void>> notifier;
+	std::mutex map_lock;
+};
 
 struct NvmeDeviceGeometry : public DeviceGeometry {};
 struct NvmeCmdContext : public CmdContext {
@@ -16,7 +26,7 @@ struct NvmeCmdContext : public CmdContext {
 
 class NvmeDevice : public Device {
 public:
-	NvmeDevice(const string &device_path, const idx_t placement_handles);
+	NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend, const bool async);
 	~NvmeDevice();
 
 	/// @brief Writes data from the input buffer to the device at the specified LBA position
@@ -76,12 +86,30 @@ private:
 	/// @return A xnvme command context
 	xnvme_cmd_ctx PrepareReadContext(idx_t plid_idx);
 
+	/// @brief Specifies the backend and sync/async used for the device
+	/// @param opts xNVMe options
+	void PrepareOpts(xnvme_opts &opts);
+
+	static void CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args);
+
+	idx_t ReadAsync(void *buffer, const CmdContext &context);
+	idx_t WriteAsync(void *buffer, const CmdContext &context);
+
+	void PrepareAsyncReadContext(xnvme_cmd_ctx &ctx, idx_t plid_idx);
+	void PrepareAsyncWriteContext(xnvme_cmd_ctx &ctx, idx_t plid_idx);
+
+
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
 	xnvme_dev *device;
+	xnvme_queue *queue;
 	const string dev_path;
 	const idx_t plhdls;
 	DeviceGeometry geometry;
+	const string backend;
+	const bool async;
+	static std::recursive_mutex queue_lock;
+	CallbackArgs cb_args;
 };
 
 } // namespace duckdb

@@ -127,5 +127,6 @@ private:
 	map<string, TemporaryFileMetadata> file_to_temp_meta;
 	idx_t max_temp_size;
 	idx_t max_wal_size;
+	static std::recursive_mutex api_lock;
 };
 } // namespace duckdb

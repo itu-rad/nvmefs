@@ -137,12 +137,16 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
+	api_lock.lock();
 	Read(handle, buffer, nr_bytes, 0);
+	api_lock.unlock();
 	return nr_bytes;
 }
 
 int64_t NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes) {
+	api_lock.lock();
 	Write(handle, buffer, nr_bytes, 0);
+	api_lock.unlock();
 	return nr_bytes;
 }
 

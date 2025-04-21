@@ -4,6 +4,11 @@
 
 namespace duckdb {
 
+const unordered_set<string> NVMEFS_BACKENDS_ASYNC = {
+    "io_uring", "io_uring_cmd", "spdk_async", "libaio", "io_ring", "iocp", "iocp_th", "posix", "emu", "thrpool", "nil"};
+
+const unordered_set<string> NVMEFS_BACKENDS_SYNC = {"spdk_sync", "nvme"};
+
 static unique_ptr<BaseSecret> CreateNvmefsSecretFromConfig(ClientContext &context, CreateSecretInput &input) {
 	auto scope = input.scope;
 
@@ -20,9 +25,6 @@ static unique_ptr<BaseSecret> CreateNvmefsSecretFromConfig(ClientContext &contex
 
 	return std::move(config);
 }
-
-const unordered_set<string> NVMEFS_BACKENDS = {"io_uring", "io_uring_cmd", "spdk_async", "libaio",  "io_ring", "iocp",
-                                               "iocp_th",  "posix",        "emu",        "thrpool", "nil",     "nvme"};
 
 void SetNvmefsSecretParameters(CreateSecretFunction &function) {
 	function.named_parameters["nvme_device_path"] = LogicalType::VARCHAR;
@@ -87,20 +89,13 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 }
 
 bool NvmeConfigManager::IsAsynchronousBackend(const string &backend) {
-	if (StringUtil::Equals(backend.data(), "io_uring") || StringUtil::Equals(backend.data(), "io_uring_cmd") ||
-	    StringUtil::Equals(backend.data(), "spdk_async") || StringUtil::Equals(backend.data(), "libaio") ||
-	    StringUtil::Equals(backend.data(), "io_ring") || StringUtil::Equals(backend.data(), "iocp") ||
-	    StringUtil::Equals(backend.data(), "iocp_th") || StringUtil::Equals(backend.data(), "posix") ||
-	    StringUtil::Equals(backend.data(), "emu") || StringUtil::Equals(backend.data(), "thrpool") ||
-	    StringUtil::Equals(backend.data(), "nil")) {
-		return true;
-	}
-	return false;
+	return NVMEFS_BACKENDS_ASYNC.find(backend) != NVMEFS_BACKENDS_ASYNC.end();
 }
 
 string NvmeConfigManager::SanatizeBackend(const string &backend) {
 
-	if (backend.empty() || NVMEFS_BACKENDS.find(backend) == NVMEFS_BACKENDS.end()) {
+	if (backend.empty() || (NVMEFS_BACKENDS_SYNC.find(backend) == NVMEFS_BACKENDS_SYNC.end() &&
+	                        NVMEFS_BACKENDS_ASYNC.find(backend) == NVMEFS_BACKENDS_ASYNC.end())) {
 		return "nvme";
 	}
 

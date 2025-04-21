@@ -345,12 +345,9 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 }
 
 idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
-	api_lock.lock();
-	std::cout << "Locking SeekPosition\n";
 	return handle.Cast<NvmeFileHandle>().GetFilePointer();
-	std::cout << "Unlocking SeekPoisition\n";
-	api_lock.unlock();
 }
+
 Device &NvmeFileSystem::GetDevice() {
 	return *device;
 }

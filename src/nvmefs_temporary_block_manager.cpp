@@ -96,11 +96,16 @@ TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx
 	block->lba_amount = endLba - block->start_lba;
 
 	// Add the new block to the free list
-	new_block->next_block = move(block->previous_block->next_block); // Move the parent block to the new split block
-	new_block->previous_block = block->previous_block;               // Set the previous block to the new split block
+	if (block->previous_block != nullptr) {
+		new_block->previous_block = block->previous_block; // Set the previous block to the new split block
+		new_block->next_block = move(block->previous_block->next_block);
+		block->previous_block->next_block = move(new_block); // Move the new block to the previous block
+	} else {
+		new_block->next_block = move(blocks); // Move the new block to the head of the list
+		blocks = move(new_block);             // Move the new block to the head of the list
+	}
 
 	block->previous_block = new_block.get(); // Set the previous block to the new split block
-	block->next_block = move(new_block);     // Set the next block to the new split block
 
 	PushFreeBlock(block); // Add the block to the free list
 
@@ -185,8 +190,12 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock &block) {
 		unique_ptr<TemporaryBlock> next_block = move(block.next_block);
 
 		// Merge the previous block
-		prev_block->previous_block->next_block =
-		    move(prev_block->next_block);                  // Move the previous block to the new merged block
+		if (prev_block->previous_block != nullptr) {
+			prev_block->previous_block->next_block =
+			    move(prev_block->next_block); // Move the previous block to the new merged block
+		} else {
+			blocks = move(prev_block->next_block);
+		}
 		block.previous_block = prev_block->previous_block; // Set the previous block to the new merged block
 
 		RemoveFreeBlock(prev_block.get()); // Remove the previous block from the free list
@@ -206,8 +215,12 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock &block) {
 		             ->next_block); // Save the previous blocks smart pointer so it doesn't get cleaned up
 
 		// Merge the previous block
-		prev_block->previous_block->next_block =
-		    move(prev_block->next_block);                  // Move the previous block to the new merged block
+		if (prev_block->previous_block != nullptr) {
+			prev_block->previous_block->next_block =
+			    move(prev_block->next_block); // Move the previous block to the new merged block
+		} else {
+			blocks = move(prev_block->next_block);
+		}
 		block.previous_block = prev_block->previous_block; // Set the previous block to the new merged block
 
 		RemoveFreeBlock(prev_block.get()); // Remove the previous block from the free list

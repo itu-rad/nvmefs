@@ -24,9 +24,11 @@ bool TemporaryBlock::IsFree() {
 
 NvmeTemporaryBlockManager::NvmeTemporaryBlockManager(idx_t allocated_lba_start, idx_t allocated_lba_end) {
 	// Initialize the linked list of free blocks
-	blocks =
-	    vector<unique_ptr<TemporaryBlock>>(8); // There are 8 different allocation sizes for the TemporaryBufferSize
-	blocks[7] = make_unique<TemporaryBlock>(allocated_lba_start, allocated_lba_end - allocated_lba_start);
+	blocks = make_uniq<TemporaryBlock>(allocated_lba_start, allocated_lba_end - allocated_lba_start);
+	blocks_free =
+	    vector<TemporaryBlock *>(8, nullptr); // There are 8 different allocation sizes for the TemporaryBufferSize
+
+	blocks_free[7] = blocks.get(); // The largest block is the first one
 }
 
 uint8_t NvmeTemporaryBlockManager::GetFreeListIndex(idx_t lba_amount) {
@@ -56,30 +58,171 @@ TemporaryBlock &NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
 	// Get the free list index for the given size
 	uint8_t free_list_index = GetFreeListIndex(lba_amount);
 
+	TemporaryBlock *block = nullptr;
+
 	// Get the free block from the free list
 	for (uint8_t i = free_list_index; i < 8; i++) {
-		if (blocks[i] != nullptr) {
+		if (blocks_free[i] != nullptr) {
 			// Get the block from the free list
-			TemporaryBlock &block = *blocks[i];
+			block = PopFreeBlock(i);
 
 			// Check if the block is large enough
 			// Split the block if it is larger than the requested size
-			if (block.lba_amount > lba_amount) {
+			if (block->lba_amount > lba_amount) {
 				block = SplitBlock(block, lba_amount);
 			}
 
-			// Mark the block as used
-			block.is_free = false;
-
-			return block;
+			break; // If we are in here we have found a block
 		}
 	}
 
-	// Mark the block as used
-	block.is_free = false;
+	if (block == nullptr) {
+		throw std::runtime_error("No free block available");
+	}
 
 	// Return the block
+	return *block;
+}
+
+TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx_t lba_amount) {
+	// Create a new block with the remaining size
+	unique_ptr<TemporaryBlock> new_block = make_uniq<TemporaryBlock>(block->start_lba, block->start_lba + lba_amount);
+	TemporaryBlock *new_block_ptr = new_block.get();
+
+	// Update the original block size
+	// TODO: Look how this works with zero indexing. We do not want to be off by one
+	idx_t endLba = block->GetEndLBA();
+	block->start_lba += lba_amount + 1;
+	block->lba_amount = endLba - block->start_lba;
+
+	// Add the new block to the free list
+	new_block->next_block = move(block->previous_block->next_block); // Move the parent block to the new split block
+	new_block->previous_block = block->previous_block;               // Set the previous block to the new split block
+
+	block->previous_block = new_block.get(); // Set the previous block to the new split block
+	block->next_block = move(new_block);     // Set the next block to the new split block
+
+	PushFreeBlock(block); // Add the block to the free list
+
+	return new_block_ptr;
+}
+
+void NvmeTemporaryBlockManager::FreeBlock(TemporaryBlock &block) {
+	TemporaryBlock *block_ptr = block.next_block->previous_block;
+
+	// Mark the block as free
+	block.is_free = true;
+
+	// Coalesce the free blocks
+	CoalesceFreeBlocks(block);
+
+	// Add the block to the free list
+	PushFreeBlock(block_ptr);
+}
+
+void NvmeTemporaryBlockManager::PushFreeBlock(TemporaryBlock *block) {
+	D_ASSERT(block->IsFree());
+
+	// Add the block to the free list
+	uint8_t free_list_index = GetFreeListIndex(block->lba_amount);
+
+	TemporaryBlock *previous_top_block = blocks_free[free_list_index];
+	previous_top_block->previous_free_block = block; // Set the previous block to the new free block
+
+	// Add the block to be the new top of the free list
+	blocks_free[free_list_index] = block;
+	block->next_free_block = previous_top_block; // Attach the provious top block to the new top block
+}
+
+TemporaryBlock *NvmeTemporaryBlockManager::PopFreeBlock(uint8_t free_list_index) {
+	// Get the block from the free list
+	TemporaryBlock *block = blocks_free[free_list_index];
+
+	D_ASSERT(block != nullptr);
+	D_ASSERT(block->IsFree());
+
+	// Remove the block from the free list
+	blocks_free[free_list_index] = block->next_free_block;
+	block->is_free = false; // Mark the block as free
+
+	// Clean the free block pointers
+	block->next_free_block = nullptr;
+	block->previous_block = nullptr;
+	blocks_free[free_list_index]->previous_free_block = nullptr; // Set the previous block to null
+
 	return block;
+}
+
+void NvmeTemporaryBlockManager::RemoveFreeBlock(TemporaryBlock *block) {
+	if (block->next_free_block != nullptr) {
+		block->next_free_block->previous_free_block = block->previous_free_block;
+	}
+
+	if (block->previous_free_block == nullptr) {
+		uint8_t free_list_index = GetFreeListIndex(block->lba_amount);
+
+		blocks_free[free_list_index] = block->next_free_block;
+		blocks_free[free_list_index]->previous_free_block = nullptr; // Set the previous block to null
+	} else {
+		// Set the previous free block to the next free block
+		block->previous_free_block->next_free_block = block->next_free_block;
+	}
+
+	block->next_free_block = nullptr;
+	block->previous_free_block = nullptr;
+}
+
+void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock &block) {
+	// Check if the previous block is free
+	if ((block.previous_block != nullptr && block.previous_block->IsFree()) &&
+	    (block.next_block != nullptr && block.next_block->IsFree())) {
+
+		block.lba_amount += block.previous_block->lba_amount + block.next_block->lba_amount;
+
+		unique_ptr<TemporaryBlock> prev_block =
+		    move(block.previous_block->previous_block
+		             ->next_block); // Save the previous blocks smart pointer so it doesn't get cleaned up
+		unique_ptr<TemporaryBlock> next_block = move(block.next_block);
+
+		// Merge the previous block
+		prev_block->previous_block->next_block =
+		    move(prev_block->next_block);                  // Move the previous block to the new merged block
+		block.previous_block = prev_block->previous_block; // Set the previous block to the new merged block
+
+		RemoveFreeBlock(prev_block.get()); // Remove the previous block from the free list
+
+		// Merge the next block
+		next_block->next_block->previous_block =
+		    next_block->previous_block;                        // Set the previous block to the new merged block
+		block.next_block = move(block.next_block->next_block); // Move the next block to the new merged block
+
+		RemoveFreeBlock(next_block.get()); // Remove the next block from the free list
+
+	} else if (block.previous_block != nullptr && block.previous_block->IsFree()) {
+		block.lba_amount += block.previous_block->lba_amount;
+
+		unique_ptr<TemporaryBlock> prev_block =
+		    move(block.previous_block->previous_block
+		             ->next_block); // Save the previous blocks smart pointer so it doesn't get cleaned up
+
+		// Merge the previous block
+		prev_block->previous_block->next_block =
+		    move(prev_block->next_block);                  // Move the previous block to the new merged block
+		block.previous_block = prev_block->previous_block; // Set the previous block to the new merged block
+
+		RemoveFreeBlock(prev_block.get()); // Remove the previous block from the free list
+	} else if (block.next_block != nullptr && block.next_block->IsFree()) {
+		block.lba_amount += block.next_block->lba_amount;
+
+		unique_ptr<TemporaryBlock> next_block = move(block.next_block);
+
+		// Merge the next block
+		next_block->next_block->previous_block =
+		    next_block->previous_block;                        // Set the previous block to the new merged block
+		block.next_block = move(block.next_block->next_block); // Move the next block to the new merged block
+
+		RemoveFreeBlock(next_block.get()); // Remove the next block from the free list
+	}
 }
 
 } // namespace duckdb

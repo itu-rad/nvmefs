@@ -52,16 +52,21 @@ private:
 	/// @param block The block to split
 	/// @param lba_amount Amount that the new splitted block should have
 	/// @return The splitted block
-	TemporaryBlock &SplitBlock(TemporaryBlock &block, idx_t lba_amount);
+	TemporaryBlock *SplitBlock(TemporaryBlock *block, idx_t lba_amount);
 
 	/// @brief Looks if the previous and next blocks are free. If they are, it merges them into one block.
 	/// @param block The block to merge
 	void CoalesceFreeBlocks(TemporaryBlock &block);
 
+	void PushFreeBlock(TemporaryBlock *block);
+	TemporaryBlock *PopFreeBlock(uint8_t free_list_index);
+	void RemoveFreeBlock(TemporaryBlock *block);
+
 private:
 	/// @brief Free blocks are stored in a vector of unique_ptrs to TemporaryBlock objects. This is to sort a block into
 	/// a linked list of equally sized blocks so that it is quicker to fetch the block that is needed.
-	vector<unique_ptr<TemporaryBlock>> blocks;
+	unique_ptr<TemporaryBlock> blocks;
+	vector<TemporaryBlock *> blocks_free;
 };
 
 } // namespace duckdb

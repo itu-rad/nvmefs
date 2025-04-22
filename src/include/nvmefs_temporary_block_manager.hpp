@@ -28,11 +28,11 @@ private:
 
 	// The next and previous blocks in the linked list
 	unique_ptr<TemporaryBlock> next_block;
-	unique_ptr<TemporaryBlock> previous_block;
+	TemporaryBlock *previous_block;
 
 	// The next and previous blocks of the same size
-	unique_ptr<TemporaryBlock> next_size_block;
-	unique_ptr<TemporaryBlock> previous_size_block;
+	TemporaryBlock *next_free_block;
+	TemporaryBlock *previous_free_block;
 };
 
 class NvmeTemporaryBlockManager {

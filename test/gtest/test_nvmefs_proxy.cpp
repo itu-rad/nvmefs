@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "nvmefs.hpp"
 #include "nvmefs_config.hpp"
+#include "nvmefs_temporary_block_manager.hpp"
 #include "utils/gtest_utils.hpp"
 #include "utils/fake_device.hpp"
 
@@ -669,5 +670,71 @@ TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
 
 	delete[] data_ptr;
 }
+
+class BlockManagerTest : public testing::Test {
+protected:
+	BlockManagerTest() {
+		// Set up the test environment
+		block_manager = make_uniq<NvmeTemporaryBlockManager>(0, 1024);
+	}
+
+	unique_ptr<NvmeTemporaryBlockManager> block_manager;
+};
+
+TEST_F(BlockManagerTest, FirstAllocateBlock) {
+
+	// Allocate a block of size 8
+	TemporaryBlock &block = block_manager->AllocateBlock(8);
+
+	// Check that the block is allocated correctly
+	EXPECT_EQ(block.GetStartLBA(), 0);
+	EXPECT_EQ(block.GetEndLBA(), 7);
+	EXPECT_EQ(block.GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block.IsFree(), false);
+}
+
+TEST_F(BlockManagerTest, AllocateTwiceInARow) {
+
+	// Allocate a block of size 8
+	TemporaryBlock &block = block_manager->AllocateBlock(8);
+	TemporaryBlock &block2 = block_manager->AllocateBlock(8);
+
+	// Check that the block is allocated correctly
+	EXPECT_EQ(block.GetStartLBA(), 0);
+	EXPECT_EQ(block.GetEndLBA(), 7);
+	EXPECT_EQ(block.GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block.IsFree(), false);
+
+	EXPECT_EQ(block2.GetStartLBA(), 8);
+	EXPECT_EQ(block2.GetEndLBA(), 15);
+	EXPECT_EQ(block2.GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block2.IsFree(), false);
+	EXPECT_EQ(block.GetEndLBA() + 1, block2.GetStartLBA());
+}
+
+TEST_F(BlockManagerTest, AllocateFreeAndAllocateAgainYieldsSameBlock) {
+
+	// Allocate a block of size 8
+	TemporaryBlock &block = block_manager->AllocateBlock(8);
+
+	// Check that the block is allocated correctly
+	idx_t start_lba = block.GetStartLBA();
+	idx_t end_lba = block.GetEndLBA();
+	idx_t size = block.GetSizeInBytes();
+	bool is_free = block.IsFree();
+
+	block_manager->FreeBlock(block);
+	TemporaryBlock &block2 = block_manager->AllocateBlock(8);
+
+	EXPECT_EQ(block2.GetStartLBA(), start_lba);
+	EXPECT_EQ(block2.GetEndLBA(), end_lba);
+	EXPECT_EQ(block2.GetSizeInBytes(), size);
+	EXPECT_EQ(block2.IsFree(), is_free);
+}
+
+// TODO: Test that we can allocate three blocks deallocate the middle one and Allocate a larger object which is after
+// the third allocation
+// TODO: Create a test that allocates three blocks and deallocate them one by one. In the end allocate all of them again
+// in one block and see that it has been consolidated correctly
 
 } // namespace duckdb

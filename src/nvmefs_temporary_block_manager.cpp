@@ -146,21 +146,26 @@ void NvmeTemporaryBlockManager::PushFreeBlock(TemporaryBlock *block) {
 
 TemporaryBlock *NvmeTemporaryBlockManager::PopFreeBlock(uint8_t free_list_index) {
 	// Get the block from the free list
-	TemporaryBlock *block = blocks_free[free_list_index];
+	TemporaryBlock *popped_block = blocks_free[free_list_index];
+	D_ASSERT(popped_block != nullptr);
+	D_ASSERT(popped_block->IsFree());
 
-	D_ASSERT(block != nullptr);
-	D_ASSERT(block->IsFree());
+	TemporaryBlock *new_head_block = popped_block->next_free_block;
 
 	// Remove the block from the free list
-	blocks_free[free_list_index] = block->next_free_block;
-	block->is_free = false; // Mark the block as free
+	blocks_free[free_list_index] = new_head_block;
+	popped_block->is_free = false; // Mark the block as free
+
 
 	// Clean the free block pointers
-	block->next_free_block = nullptr;
-	block->previous_block = nullptr;
-	blocks_free[free_list_index]->previous_free_block = nullptr; // Set the previous block to null
+	popped_block->next_free_block = nullptr;
+	popped_block->previous_free_block = nullptr;
 
-	return block;
+	if (new_head_block != nullptr) {
+		new_head_block->previous_free_block = nullptr; // Set the previous block to null
+	}
+
+	return popped_block;
 }
 
 void NvmeTemporaryBlockManager::RemoveFreeBlock(TemporaryBlock *block) {

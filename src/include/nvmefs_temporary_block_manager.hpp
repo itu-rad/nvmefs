@@ -40,8 +40,8 @@ public:
 	NvmeTemporaryBlockManager(idx_t allocated_lba_start, idx_t allocated_lba_end);
 
 public:
-	TemporaryBlock &AllocateBlock(idx_t lba_amount);
-	void FreeBlock(TemporaryBlock &block);
+	TemporaryBlock *AllocateBlock(idx_t lba_amount);
+	void FreeBlock(TemporaryBlock *block);
 
 private:
 	uint8_t GetFreeListIndex(idx_t lba_amount);
@@ -55,7 +55,7 @@ private:
 
 	/// @brief Looks if the previous and next blocks are free. If they are, it merges them into one block.
 	/// @param block The block to merge
-	void CoalesceFreeBlocks(TemporaryBlock &block);
+	void CoalesceFreeBlocks(TemporaryBlock *block);
 
 	void PushFreeBlock(TemporaryBlock *block);
 	TemporaryBlock *PopFreeBlock(uint8_t free_list_index);

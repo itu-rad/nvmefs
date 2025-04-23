@@ -53,6 +53,7 @@ private:
 	/// @return The splitted block
 	TemporaryBlock *SplitBlock(TemporaryBlock *block, idx_t lba_amount);
 	void PrintBlocks(TemporaryBlock *block);
+	void PrintBlocksBackwards(TemporaryBlock *block);
 
 	/// @brief Looks if the previous and next blocks are free. If they are, it merges them into one block.
 	/// @param block The block to merge

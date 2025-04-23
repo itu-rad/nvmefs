@@ -99,66 +99,43 @@ void NvmeTemporaryBlockManager::PrintBlocks(TemporaryBlock *block) {
 	}
 	printf("-------\n");
 }
+void NvmeTemporaryBlockManager::PrintBlocksBackwards(TemporaryBlock *block) {
+
+	printf("-------\n");
+	while (block != nullptr) {
+		printf("Block start lba %llu end lba %llu\n", block->GetStartLBA(), block->GetEndLBA());
+		block = block->previous_block;
+	}
+	printf("-------\n");
+}
 
 TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx_t lba_amount) {
 	// Create a new block with the remaining size
 	unique_ptr<TemporaryBlock> new_block = make_uniq<TemporaryBlock>(block->start_lba, lba_amount);
 	TemporaryBlock *new_block_ptr = new_block.get();
 
-	PrintBlocks(blocks.get());
-
 	// Update the original block size
 	idx_t endLba = block->GetEndLBA();
 	block->start_lba += lba_amount;
 	block->lba_amount -= lba_amount;
 
-	// printf("Block start lba %llu end lba %llu\n", block->GetStartLBA(), block->GetEndLBA());
-	// printf("New block start lba %llu end lba %llu\n", new_block_ptr->GetStartLBA(), new_block_ptr->GetEndLBA());
-
 	// Add the new block to the free list
 	if (new_block->GetStartLBA() != allocated_start_lba) {
-		// printf("Prev block start lba %llu end lba %llu\n", block->previous_block->GetStartLBA(),
-		//        block->previous_block->GetEndLBA());
-		// printf("New block(again) start lba %llu end lba %llu\n", new_block_ptr->GetStartLBA(),
-		//        new_block_ptr->GetEndLBA());
-
 		auto prev = block->previous_block;
 		auto old_block = move(prev->next_block);
 
 		new_block->previous_block = prev;        // Set the previous block to the new split block
 		new_block->next_block = move(old_block); // Get current blocks unique_ptr and move it
 		prev->next_block = move(new_block);      // Move the new block to the previous block
-
-		PrintBlocks(blocks.get());
-
-		if (prev->GetEndLBA() + 1 != new_block_ptr->GetStartLBA())
-			throw std::runtime_error("Splitblock - prev does not point to the new block with correct lba");
-
-		if (new_block_ptr->GetEndLBA() + 1 != new_block_ptr->next_block->GetStartLBA()) {
-			printf("Blocks start lba %llu end lba %llu\n", new_block_ptr->GetStartLBA(), new_block_ptr->GetEndLBA());
-			printf("Next block start lba %llu end lba %llu\n", new_block_ptr->next_block->GetStartLBA(),
-			       new_block_ptr->next_block->GetEndLBA());
-			throw std::runtime_error("SplitBlock - blocks are not contiguous prev");
-		}
-
 	} else {
-		block->previous_block = new_block_ptr;
 		new_block->next_block = move(blocks); // Move the new block to the head of the list
 		blocks = move(new_block);             // Move the new block to the head of the list
-
-		if (blocks->GetEndLBA() + 1 != blocks->next_block->GetStartLBA()) {
-			// printf("Blocks start lba %llu end lba %llu\n", blocks->GetStartLBA(), blocks->GetEndLBA());
-			// printf("Next block start lba %llu end lba %llu\n", blocks->next_block->GetStartLBA(),
-			//        blocks->next_block->GetEndLBA());
-			throw std::runtime_error("SplitBlock - blocks are not contiguous");
-		}
 	}
 
 	block->previous_block = new_block_ptr; // Set the previous block to the new split block
 
 	block->is_free = true;
 	PushFreeBlock(block); // Add the block to the free list
-	printf("=========\n");
 	return new_block_ptr;
 }
 

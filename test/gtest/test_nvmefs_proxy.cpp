@@ -776,8 +776,6 @@ TEST_F(BlockManagerTest,
 	block_manager->FreeBlock(block3); // Should coalesce with the original large block
 	block_manager->FreeBlock(block2); // Should coalesce with block and block3 and move it to the large block free list
 
-	printf("All blocks freed\n");
-
 	TemporaryBlock *block4 = block_manager->AllocateBlock(24);
 
 	EXPECT_EQ(block4->GetStartLBA(), 0);
@@ -785,7 +783,62 @@ TEST_F(BlockManagerTest,
 	EXPECT_EQ(block4->GetSizeInBytes(), 24 * 4096);
 	EXPECT_EQ(block4->IsFree(), false);
 }
-// TODO: Create a test that allocates three blocks and deallocate them one by one. In the end allocate all of them again
-// in one block and see that it has been consolidated correctly
+
+TEST_F(
+    BlockManagerTest,
+    AllocateBlocksAndFreeTheMiddleBlockToTriggerCoalescingToTheLeftAndAcquireANewBlockThatShouldStartFromTheSameLocation) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block->GetStartLBA() == 0);
+	ASSERT_TRUE(block2->GetStartLBA() == block->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetStartLBA() == block2->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetEndLBA() == block3->GetStartLBA() + 7);
+
+	// Check that the block is allocated correctly
+	block_manager->FreeBlock(block); // Should not coalesce anything
+	block_manager->FreeBlock(block2);
+	block_manager->FreeBlock(block3); // Should coalesce with the original large block
+
+	TemporaryBlock *block4 = block_manager->AllocateBlock(16);
+
+	EXPECT_EQ(block4->GetStartLBA(), 0);
+	EXPECT_EQ(block4->GetEndLBA(), 15);
+	EXPECT_EQ(block4->GetSizeInBytes(), 16 * 4096);
+	EXPECT_EQ(block4->IsFree(), false);
+}
+
+TEST_F(BlockManagerTest, FreelistRemoveOneAtATime) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block1 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block4 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block50 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block4->GetStartLBA() == block3->GetEndLBA() + 1);
+
+	// Check that the block is allocated correctly
+	block_manager->FreeBlock(block2);
+	block_manager->FreeBlock(block4); // Should coalesce with the original large block
+
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+
+	EXPECT_EQ(block->GetStartLBA(), 24);
+	EXPECT_EQ(block->GetEndLBA(), 31);
+	EXPECT_EQ(block->GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block->IsFree(), false);
+
+	TemporaryBlock *block5 = block_manager->AllocateBlock(8);
+
+	EXPECT_EQ(block5->GetStartLBA(), 8);
+	EXPECT_EQ(block5->GetEndLBA(), 15);
+	EXPECT_EQ(block5->GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block5->IsFree(), false);
+}
 
 } // namespace duckdb

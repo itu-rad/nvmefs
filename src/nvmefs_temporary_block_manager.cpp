@@ -27,7 +27,8 @@ bool TemporaryBlock::IsFree() {
 	return is_free;
 }
 
-NvmeTemporaryBlockManager::NvmeTemporaryBlockManager(idx_t allocated_lba_start, idx_t allocated_lba_end) {
+NvmeTemporaryBlockManager::NvmeTemporaryBlockManager(idx_t allocated_lba_start, idx_t allocated_lba_end)
+    : allocated_start_lba(allocated_lba_start), allocated_end_lba(allocated_lba_end) {
 	// Initialize the linked list of free blocks
 	blocks = make_uniq<TemporaryBlock>(allocated_lba_start, allocated_lba_end - allocated_lba_start);
 	blocks_free =
@@ -86,7 +87,17 @@ TemporaryBlock *NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
 	}
 
 	// Return the block
+	block->is_free = false; // Mark the block as used
 	return block;
+}
+
+void NvmeTemporaryBlockManager::PrintBlocks(TemporaryBlock *block) {
+	printf("-------\n");
+	while (block != nullptr) {
+		printf("Block start lba %llu end lba %llu\n", block->GetStartLBA(), block->GetEndLBA());
+		block = block->next_block.get();
+	}
+	printf("-------\n");
 }
 
 TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx_t lba_amount) {
@@ -94,38 +105,60 @@ TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx
 	unique_ptr<TemporaryBlock> new_block = make_uniq<TemporaryBlock>(block->start_lba, lba_amount);
 	TemporaryBlock *new_block_ptr = new_block.get();
 
+	PrintBlocks(blocks.get());
+
 	// Update the original block size
 	idx_t endLba = block->GetEndLBA();
 	block->start_lba += lba_amount;
 	block->lba_amount -= lba_amount;
 
-	// Add the new block to the free list
-	if (block->previous_block != nullptr) {
-		new_block->previous_block = block->previous_block; // Set the previous block to the new split block
-		new_block->next_block = move(block->previous_block->next_block); // Get current blocks unique_ptr and move it
-		block->previous_block->next_block = move(new_block);             // Move the new block to the previous block
+	// printf("Block start lba %llu end lba %llu\n", block->GetStartLBA(), block->GetEndLBA());
+	// printf("New block start lba %llu end lba %llu\n", new_block_ptr->GetStartLBA(), new_block_ptr->GetEndLBA());
 
-		printf("Splitting block %d with end lba %d\n", block->GetStartLBA(), block->GetEndLBA());
-		printf("New block %d with end lba %d\n", new_block_ptr->GetStartLBA(), new_block_ptr->GetEndLBA());
-		printf("New next blcok %d with end lba %d\n", new_block_ptr->next_block->GetStartLBA(),
-		       new_block_ptr->next_block->GetEndLBA());
-		printf("New next block is free %d\n", new_block_ptr->next_block->IsFree());
+	// Add the new block to the free list
+	if (new_block->GetStartLBA() != allocated_start_lba) {
+		// printf("Prev block start lba %llu end lba %llu\n", block->previous_block->GetStartLBA(),
+		//        block->previous_block->GetEndLBA());
+		// printf("New block(again) start lba %llu end lba %llu\n", new_block_ptr->GetStartLBA(),
+		//        new_block_ptr->GetEndLBA());
+
+		auto prev = block->previous_block;
+		auto old_block = move(prev->next_block);
+
+		new_block->previous_block = prev;        // Set the previous block to the new split block
+		new_block->next_block = move(old_block); // Get current blocks unique_ptr and move it
+		prev->next_block = move(new_block);      // Move the new block to the previous block
+
+		PrintBlocks(blocks.get());
+
+		if (prev->GetEndLBA() + 1 != new_block_ptr->GetStartLBA())
+			throw std::runtime_error("Splitblock - prev does not point to the new block with correct lba");
+
+		if (new_block_ptr->GetEndLBA() + 1 != new_block_ptr->next_block->GetStartLBA()) {
+			printf("Blocks start lba %llu end lba %llu\n", new_block_ptr->GetStartLBA(), new_block_ptr->GetEndLBA());
+			printf("Next block start lba %llu end lba %llu\n", new_block_ptr->next_block->GetStartLBA(),
+			       new_block_ptr->next_block->GetEndLBA());
+			throw std::runtime_error("SplitBlock - blocks are not contiguous prev");
+		}
+
 	} else {
+		block->previous_block = new_block_ptr;
 		new_block->next_block = move(blocks); // Move the new block to the head of the list
 		blocks = move(new_block);             // Move the new block to the head of the list
 
-		printf("Splitting block %d with end lba %d\n", block->GetStartLBA(), block->GetEndLBA());
-		printf("New block %d with end lba %d\n", blocks->GetStartLBA(), blocks->GetEndLBA());
-		printf("New next blcok %d with end lba %d\n", blocks->next_block->GetStartLBA(),
-		       blocks->next_block->GetEndLBA());
-		printf("New next block is free %d\n", new_block_ptr->next_block->IsFree());
+		if (blocks->GetEndLBA() + 1 != blocks->next_block->GetStartLBA()) {
+			// printf("Blocks start lba %llu end lba %llu\n", blocks->GetStartLBA(), blocks->GetEndLBA());
+			// printf("Next block start lba %llu end lba %llu\n", blocks->next_block->GetStartLBA(),
+			//        blocks->next_block->GetEndLBA());
+			throw std::runtime_error("SplitBlock - blocks are not contiguous");
+		}
 	}
 
-	block->previous_block = new_block.get(); // Set the previous block to the new split block
+	block->previous_block = new_block_ptr; // Set the previous block to the new split block
 
 	block->is_free = true;
 	PushFreeBlock(block); // Add the block to the free list
-
+	printf("=========\n");
 	return new_block_ptr;
 }
 
@@ -133,19 +166,10 @@ void NvmeTemporaryBlockManager::FreeBlock(TemporaryBlock *block) {
 	// Mark the block as free
 	block->is_free = true;
 
-	if (block->next_block != nullptr && block->next_block->IsFree()) {
-		printf("Next block is free\n");
-	}
-
-	if (block->previous_block != nullptr && block->previous_block->IsFree()) {
-		printf("Previous block is free\n");
-	}
-
 	// Coalesce the free blocks
 	CoalesceFreeBlocks(block);
 
 	// Add the block to the free list
-	printf("Pushing free block %d with end lba %d\n", block->GetStartLBA(), block->GetEndLBA());
 	PushFreeBlock(block);
 }
 
@@ -196,7 +220,6 @@ void NvmeTemporaryBlockManager::RemoveFreeBlock(TemporaryBlock *block) {
 		block->next_free_block->previous_free_block = block->previous_free_block;
 	}
 
-	printf("Removing previous free\n");
 	if (block->previous_free_block == nullptr) {
 		uint8_t free_list_index = GetFreeListIndex(block->lba_amount);
 
@@ -214,11 +237,9 @@ void NvmeTemporaryBlockManager::RemoveFreeBlock(TemporaryBlock *block) {
 
 void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 	// Check if the previous block is free
-	printf("Left block %d \n", block->previous_block != nullptr);
-	printf("Right block %d \n", block->next_block != nullptr);
 	if ((block->previous_block != nullptr && block->previous_block->IsFree()) &&
 	    (block->next_block != nullptr && block->next_block->IsFree())) {
-		printf("Coalescing left right free blocks\n");
+		// printf("Coalescing left right free blocks\n");
 
 		block->lba_amount += block->previous_block->lba_amount + block->next_block->lba_amount;
 
@@ -247,7 +268,7 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 
 	} else if (block->previous_block != nullptr && block->previous_block->IsFree()) {
 		block->lba_amount += block->previous_block->lba_amount;
-		printf("Coalescing left free blocks\n");
+		// printf("Coalescing left free blocks\n");
 
 		unique_ptr<TemporaryBlock> prev_block =
 		    move(block->previous_block->previous_block
@@ -264,8 +285,8 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 
 		RemoveFreeBlock(prev_block.get()); // Remove the previous block from the free list
 	} else if (block->next_block != nullptr && block->next_block->IsFree()) {
-		printf("Coalescing right free blocks\n");
-		printf("Block amount %d\n", block->lba_amount);
+		// printf("Coalescing right free blocks\n");
+		// printf("Block amount %d\n", block->lba_amount);
 		// printf("Next block amount %d\n", block->next_block->lba_amount);
 		block->lba_amount += block->next_block->lba_amount;
 
@@ -281,7 +302,7 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 		}
 
 		RemoveFreeBlock(old_right_block.get()); // Remove the next block from the free list
-		printf("Coalecesed right free blocks\n");
+		                                        // printf("Coalecesed right free blocks\n");
 	}
 }
 

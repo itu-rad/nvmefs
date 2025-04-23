@@ -52,6 +52,7 @@ private:
 	/// @param lba_amount Amount that the new splitted block should have
 	/// @return The splitted block
 	TemporaryBlock *SplitBlock(TemporaryBlock *block, idx_t lba_amount);
+	void PrintBlocks(TemporaryBlock *block);
 
 	/// @brief Looks if the previous and next blocks are free. If they are, it merges them into one block.
 	/// @param block The block to merge
@@ -66,6 +67,9 @@ private:
 	/// a linked list of equally sized blocks so that it is quicker to fetch the block that is needed.
 	unique_ptr<TemporaryBlock> blocks;
 	vector<TemporaryBlock *> blocks_free;
+
+	idx_t allocated_start_lba;
+	idx_t allocated_end_lba;
 };
 
 } // namespace duckdb

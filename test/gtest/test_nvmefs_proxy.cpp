@@ -732,8 +732,32 @@ TEST_F(BlockManagerTest, AllocateFreeAndAllocateAgainYieldsSameBlock) {
 	EXPECT_EQ(block2->IsFree(), is_free);
 }
 
-// TODO: Test that we can allocate three blocks deallocate the middle one and Allocate a larger object which is after
-// the third allocation
+TEST_F(BlockManagerTest,
+       AllocateSameSizeThreeTimesFreeTheMiddleAllocationAndAllocateALargerObjectYieldsBlockAfterBlock3) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block->GetStartLBA() == 0);
+	ASSERT_TRUE(block2->GetStartLBA() == block->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetStartLBA() == block2->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetEndLBA() == block3->GetStartLBA() + 7);
+
+	// Check that the block is allocated correctly
+	idx_t start_lba = block2->GetStartLBA();
+	idx_t end_lba = block2->GetEndLBA();
+
+	block_manager->FreeBlock(block2);
+	TemporaryBlock *block4 = block_manager->AllocateBlock(16);
+
+	EXPECT_EQ(block4->GetStartLBA(), block3->GetEndLBA() + 1);
+	EXPECT_EQ(block4->GetEndLBA(), block4->GetStartLBA() + 15);
+	EXPECT_EQ(block4->GetSizeInBytes(), 16 * 4096);
+	EXPECT_EQ(block4->IsFree(), false);
+}
+
 // TODO: Create a test that allocates three blocks and deallocate them one by one. In the end allocate all of them again
 // in one block and see that it has been consolidated correctly
 

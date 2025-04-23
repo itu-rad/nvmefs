@@ -675,7 +675,7 @@ class BlockManagerTest : public testing::Test {
 protected:
 	BlockManagerTest() {
 		// Set up the test environment
-		block_manager = make_uniq<NvmeTemporaryBlockManager>(0, 1024 - 1); // 0 index...
+		block_manager = make_uniq<NvmeTemporaryBlockManager>(0, 1024);
 	}
 
 	unique_ptr<NvmeTemporaryBlockManager> block_manager;
@@ -758,6 +758,33 @@ TEST_F(BlockManagerTest,
 	EXPECT_EQ(block4->IsFree(), false);
 }
 
+TEST_F(BlockManagerTest,
+       AllocateFreeBlocksAndFreeSurroundingBlocksAndAllocateALargerBlockYieldsBlockThatStartsFromSameLocation) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block->GetStartLBA() == 0);
+	ASSERT_TRUE(block2->GetStartLBA() == block->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetStartLBA() == block2->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetEndLBA() == block3->GetStartLBA() + 7);
+
+	// Check that the block is allocated correctly
+	block_manager->FreeBlock(block);  // Should not coalesce anything
+	block_manager->FreeBlock(block3); // Should coalesce with the original large block
+	block_manager->FreeBlock(block2); // Should coalesce with block and block3 and move it to the large block free list
+
+	printf("All blocks freed\n");
+
+	TemporaryBlock *block4 = block_manager->AllocateBlock(24);
+
+	EXPECT_EQ(block4->GetStartLBA(), 0);
+	EXPECT_EQ(block4->GetEndLBA(), 23);
+	EXPECT_EQ(block4->GetSizeInBytes(), 24 * 4096);
+	EXPECT_EQ(block4->IsFree(), false);
+}
 // TODO: Create a test that allocates three blocks and deallocate them one by one. In the end allocate all of them again
 // in one block and see that it has been consolidated correctly
 

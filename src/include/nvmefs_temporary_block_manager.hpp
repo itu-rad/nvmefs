@@ -38,7 +38,6 @@ private:
 class NvmeTemporaryBlockManager {
 public:
 	NvmeTemporaryBlockManager(idx_t allocated_lba_start, idx_t allocated_lba_end);
-	~NvmeTemporaryBlockManager();
 
 public:
 	TemporaryBlock &AllocateBlock(idx_t lba_amount);

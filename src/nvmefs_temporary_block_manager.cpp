@@ -88,13 +88,15 @@ TemporaryBlock *NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
 
 	// Return the block
 	block->is_free = false; // Mark the block as used
+
 	return block;
 }
 
 void NvmeTemporaryBlockManager::PrintBlocks(TemporaryBlock *block) {
 	printf("-------\n");
 	while (block != nullptr) {
-		printf("Block start lba %llu end lba %llu\n", block->GetStartLBA(), block->GetEndLBA());
+		printf("Block start lba %llu end lba %llu, is_free: %d\n", block->GetStartLBA(), block->GetEndLBA(),
+		       block->IsFree());
 		block = block->next_block.get();
 	}
 	printf("-------\n");
@@ -193,6 +195,7 @@ TemporaryBlock *NvmeTemporaryBlockManager::PopFreeBlock(uint8_t free_list_index)
 }
 
 void NvmeTemporaryBlockManager::RemoveFreeBlock(TemporaryBlock *block) {
+
 	if (block->next_free_block != nullptr) {
 		block->next_free_block->previous_free_block = block->previous_free_block;
 	}
@@ -220,17 +223,19 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 		block->start_lba = block->previous_block->start_lba; // Set the start lba to the previous blocks start lba
 		block->lba_amount += block->previous_block->lba_amount + block->next_block->lba_amount;
 
-		// Merge the previous block
 		if (block->previous_block->previous_block != nullptr) {
 			block->previous_block->previous_block->next_block =
 			    move(block->previous_block->next_block); // Move the previous block to the new merged block
-		} else {
-			blocks = move(block->previous_block->next_block);
-		}
-		TemporaryBlock *prev = block->previous_block;
-		block->previous_block = prev->previous_block; // Set the previous block to the new merged block
 
-		RemoveFreeBlock(prev); // Remove the previous block from the free list
+			block->previous_block =
+			    block->previous_block->previous_block; // Set the previous block to the new merged block
+
+			RemoveFreeBlock(block->previous_block); // Remove the previous block from the free list
+		} else {
+			RemoveFreeBlock(blocks.get()); // Remove the previous block from the free list
+			blocks = move(block->previous_block->next_block);
+			blocks->previous_block = nullptr; // Set the previous block to null
+		}
 
 		// Merge the next block
 		unique_ptr<TemporaryBlock> old_right_block = move(block->next_block);
@@ -250,13 +255,16 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 		if (block->previous_block->previous_block != nullptr) {
 			block->previous_block->previous_block->next_block =
 			    move(block->previous_block->next_block); // Move the previous block to the new merged block
-		} else {
-			blocks = move(block->previous_block->next_block);
-		}
-		TemporaryBlock *prev = block->previous_block;
-		block->previous_block = prev->previous_block; // Set the previous block to the new merged block
 
-		RemoveFreeBlock(prev); // Remove the previous block from the free list
+			block->previous_block =
+			    block->previous_block->previous_block; // Set the previous block to the new merged block
+
+			RemoveFreeBlock(block->previous_block); // Remove the previous block from the free list
+		} else {
+			RemoveFreeBlock(blocks.get()); // Remove the previous block from the free list
+			blocks = move(block->previous_block->next_block);
+			blocks->previous_block = nullptr; // Set the previous block to null
+		}
 	} else if (block->next_block != nullptr && block->next_block->IsFree()) {
 		block->lba_amount += block->next_block->lba_amount;
 

@@ -3,7 +3,7 @@
 
 namespace duckdb {
 TemporaryBlock::TemporaryBlock(idx_t start_lba, idx_t lba_amount)
-    : start_lba(start_lba), lba_amount(lba_amount), is_free(true) {
+    : start_lba(start_lba), lba_amount(lba_amount), is_free(false) {
 
 	next_block = nullptr;
 	previous_block = nullptr;
@@ -12,7 +12,7 @@ TemporaryBlock::TemporaryBlock(idx_t start_lba, idx_t lba_amount)
 }
 
 idx_t TemporaryBlock::GetSizeInBytes() {
-	return lba_amount * 4096; // TODO: Get the LBA size from the device
+	return (lba_amount + 1) * 4096; // TODO: Get the LBA size from the device
 }
 
 idx_t TemporaryBlock::GetStartLBA() {
@@ -91,13 +91,12 @@ TemporaryBlock &NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
 
 TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx_t lba_amount) {
 	// Create a new block with the remaining size
-	unique_ptr<TemporaryBlock> new_block = make_uniq<TemporaryBlock>(block->start_lba, block->start_lba + lba_amount);
+	unique_ptr<TemporaryBlock> new_block = make_uniq<TemporaryBlock>(block->start_lba, lba_amount - 1);
 	TemporaryBlock *new_block_ptr = new_block.get();
 
 	// Update the original block size
-	// TODO: Look how this works with zero indexing. We do not want to be off by one
 	idx_t endLba = block->GetEndLBA();
-	block->start_lba += lba_amount + 1;
+	block->start_lba += lba_amount;
 	block->lba_amount = endLba - block->start_lba;
 
 	// Add the new block to the free list
@@ -132,12 +131,16 @@ void NvmeTemporaryBlockManager::FreeBlock(TemporaryBlock &block) {
 
 void NvmeTemporaryBlockManager::PushFreeBlock(TemporaryBlock *block) {
 	D_ASSERT(block->IsFree());
+	D_ASSERT(block->next_free_block == nullptr);
+	D_ASSERT(block->previous_free_block == nullptr);
 
 	// Add the block to the free list
 	uint8_t free_list_index = GetFreeListIndex(block->lba_amount);
 
 	TemporaryBlock *previous_top_block = blocks_free[free_list_index];
-	previous_top_block->previous_free_block = block; // Set the previous block to the new free block
+	if (previous_top_block != nullptr) {
+		previous_top_block->previous_free_block = block; // Set the previous block to the new free block
+	}
 
 	// Add the block to be the new top of the free list
 	blocks_free[free_list_index] = block;
@@ -147,6 +150,7 @@ void NvmeTemporaryBlockManager::PushFreeBlock(TemporaryBlock *block) {
 TemporaryBlock *NvmeTemporaryBlockManager::PopFreeBlock(uint8_t free_list_index) {
 	// Get the block from the free list
 	TemporaryBlock *popped_block = blocks_free[free_list_index];
+
 	D_ASSERT(popped_block != nullptr);
 	D_ASSERT(popped_block->IsFree());
 
@@ -155,7 +159,6 @@ TemporaryBlock *NvmeTemporaryBlockManager::PopFreeBlock(uint8_t free_list_index)
 	// Remove the block from the free list
 	blocks_free[free_list_index] = new_head_block;
 	popped_block->is_free = false; // Mark the block as free
-
 
 	// Clean the free block pointers
 	popped_block->next_free_block = nullptr;

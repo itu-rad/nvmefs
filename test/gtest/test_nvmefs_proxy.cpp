@@ -675,7 +675,7 @@ class BlockManagerTest : public testing::Test {
 protected:
 	BlockManagerTest() {
 		// Set up the test environment
-		block_manager = make_uniq<NvmeTemporaryBlockManager>(0, 1024);
+		block_manager = make_uniq<NvmeTemporaryBlockManager>(0, 1024 - 1); // 0 index...
 	}
 
 	unique_ptr<NvmeTemporaryBlockManager> block_manager;

@@ -12,7 +12,7 @@ TemporaryBlock::TemporaryBlock(idx_t start_lba, idx_t lba_amount)
 }
 
 idx_t TemporaryBlock::GetSizeInBytes() {
-	return (lba_amount + 1) * 4096; // TODO: Get the LBA size from the device
+	return lba_amount * 4096; // TODO: Get the LBA size from the device
 }
 
 idx_t TemporaryBlock::GetStartLBA() {
@@ -20,7 +20,7 @@ idx_t TemporaryBlock::GetStartLBA() {
 }
 
 idx_t TemporaryBlock::GetEndLBA() {
-	return start_lba + lba_amount;
+	return start_lba + lba_amount - 1;
 }
 
 bool TemporaryBlock::IsFree() {
@@ -91,7 +91,7 @@ TemporaryBlock *NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
 
 TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx_t lba_amount) {
 	// Create a new block with the remaining size
-	unique_ptr<TemporaryBlock> new_block = make_uniq<TemporaryBlock>(block->start_lba, lba_amount - 1);
+	unique_ptr<TemporaryBlock> new_block = make_uniq<TemporaryBlock>(block->start_lba, lba_amount);
 	TemporaryBlock *new_block_ptr = new_block.get();
 
 	// Update the original block size

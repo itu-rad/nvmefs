@@ -4,6 +4,11 @@
 namespace duckdb {
 TemporaryBlock::TemporaryBlock(idx_t start_lba, idx_t lba_amount)
     : start_lba(start_lba), lba_amount(lba_amount), is_free(true) {
+
+	next_block = nullptr;
+	previous_block = nullptr;
+	next_free_block = nullptr;
+	previous_free_block = nullptr;
 }
 
 idx_t TemporaryBlock::GetSizeInBytes() {

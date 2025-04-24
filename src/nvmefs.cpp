@@ -102,7 +102,8 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 
 	idx_t cursor_offset = SeekPosition(handle);
 	location += cursor_offset;
-	idx_t start_lba = GetLBA(handle.path, nr_bytes, location);
+	idx_t nr_lbas = fh.CalculateRequiredLBACount(nr_bytes);
+	idx_t start_lba = GetLBA(handle.path, nr_bytes, location, nr_lbas);
 	idx_t in_block_offset = location % geo.lba_size;
 	unique_ptr<CmdContext> cmd_ctx = fh.PrepareReadCommand(nr_bytes, start_lba, in_block_offset);
 
@@ -123,7 +124,8 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 
 	idx_t cursor_offset = SeekPosition(handle);
 	location += cursor_offset;
-	idx_t start_lba = GetLBA(fh.path, nr_bytes, location);
+	idx_t nr_lbas = fh.CalculateRequiredLBACount(nr_bytes);
+	idx_t start_lba = GetLBA(fh.path, nr_bytes, location, nr_lbas);
 	idx_t in_block_offset = location % geo.lba_size;
 	unique_ptr<CmdContext> cmd_ctx = fh.PrepareWriteCommand(nr_bytes, start_lba, in_block_offset);
 
@@ -222,7 +224,7 @@ int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
 		break;
 	case MetadataType::TEMPORARY: {
 		TemporaryFileMetadata tfmeta = file_to_temp_meta[fh.path];
-		nr_lbas = tfmeta.block_size * tfmeta.block_map.size();
+		nr_lbas = (tfmeta.block_size * tfmeta.block_map.size()) / geo.lba_size;
 		break;
 	}
 	case MetadataType::WAL:
@@ -435,7 +437,7 @@ void NvmeFileSystem::InitializeMetadata(const string &filename) {
 	strncpy(global->db_path, filename.data(), filename.length());
 	global->db_path[100] = '\0';
 
-	temp_block_manager = make_uniq<NvmeTemporaryBlockManager>(metadata->temporary.start, metadata->temporary.end);
+	temp_block_manager = make_uniq<NvmeTemporaryBlockManager>(global->temporary.start, global->temporary.end);
 
 	WriteMetadata(*global);
 
@@ -531,7 +533,7 @@ MetadataType NvmeFileSystem::GetMetadataType(const string &filename) {
 	}
 }
 
-idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t location) {
+idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t location, idx_t nr_lbas) {
 	idx_t lba {};
 	MetadataType type = GetMetadataType(filename);
 	DeviceGeometry geo = device->GetDeviceGeometry();
@@ -548,11 +550,11 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 		break;
 	case MetadataType::TEMPORARY: {
 		TemporaryFileMetadata tfmeta;
-		idx_t block_index = location / nr_bytes;
-		idx_t nr_lbas = nr_bytes / geo.lba_size;
 
 		if (file_to_temp_meta.count(filename)) {
 			tfmeta = file_to_temp_meta[filename];
+			idx_t block_index = location / tfmeta.block_size;
+
 			if (!tfmeta.block_map.count(block_index)) {
 				TemporaryBlock *block = temp_block_manager->AllocateBlock(nr_lbas);
 				tfmeta.block_map[block_index] = block;
@@ -560,10 +562,13 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 			lba = tfmeta.block_map[block_index]->GetStartLBA();
 
 		} else {
-			tfmeta = {.block_size = nr_bytes};
+			tfmeta = {.block_size = nr_lbas * geo.lba_size};
 			file_to_temp_meta[filename] = tfmeta;
 
+			idx_t block_index = location / tfmeta.block_size;
+
 			TemporaryBlock *block = temp_block_manager->AllocateBlock(nr_lbas);
+			printf("Allocating block %d with size %d\n", block->GetStartLBA(), block->GetSizeInBytes());
 			file_to_temp_meta[filename].block_map[block_index] = block;
 			lba = block->GetStartLBA();
 		}

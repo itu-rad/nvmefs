@@ -108,7 +108,7 @@ private:
 	void WriteMetadata(GlobalMetadata &global);
 	void UpdateMetadata(CmdContext &Context);
 	MetadataType GetMetadataType(const string &filename);
-	idx_t GetLBA(const string &filename, idx_t nr_bytes, idx_t location);
+	idx_t GetLBA(const string &filename, idx_t nr_bytes, idx_t location, idx_t nr_lbas);
 
 	/// @brief Checks that the start_lba is within the assigned metadata range and that lba_start+lba_count is within
 	/// the assigned metadata range

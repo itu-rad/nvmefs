@@ -276,6 +276,7 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 
 				tfmeta.block_map.erase(i);
 			}
+			file_to_temp_meta[nvme_handle.path] = tfmeta;
 		} break;
 		default:
 			throw InvalidInputException("Unknown metadata type");

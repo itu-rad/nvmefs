@@ -319,7 +319,6 @@ void NvmeFileSystem::CreateDirectory(const string &directory, optional_ptr<FileO
 
 void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
 	api_lock.lock();
-	// std::cout << "Locking RemoveFile\n";
 	MetadataType type = GetMetadataType(filename);
 
 	switch (type) {
@@ -328,16 +327,17 @@ void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener>
 		metadata->write_ahead_log.location = metadata->write_ahead_log.start;
 		break;
 
-	case TEMPORARY:
-		// TODO: how do we determine if we need to move the temp metadata location pointer
-		// and what about fragmentation? is it even possible to use ringbuffer technique?
+	case TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[filename];
+		for (const auto& kv : tfmeta.block_map) {
+			temp_block_manager.FreeBlock(kv.second);
+		}
 		file_to_temp_meta.erase(filename);
-		break;
+		} break;
 	default:
 		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
 		break;
 	}
-	// std::cout << "Unlocking RemoveFile\n";
 	api_lock.unlock();
 }
 

@@ -215,11 +215,25 @@ int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	MetadataType type = GetMetadataType(fh.path);
 
-	idx_t start_lba = GetStartLBA(fh.path);
-	idx_t location_lba = GetLocationLBA(fh.path);
-	// std::cout << "Unlocking GetFileSize\n";
+	idx_t nr_lbas{};
+	switch (type) {
+	case MetadataType::DATABASE:
+		nr_lbas = metadata->database.location - metadata->database.start;
+		break;
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[fh.path];
+		nr_lbas = tfmeta.block_size * tfmeta.block_map.size();
+		break;
+	}
+	case MetadataType::WAL:
+		nr_lbas = metadata->write_ahead_log.location - metadata->write_ahead_log.start;
+		break;
+	default:
+		throw InvalidInputException("Unknown metadata type!");
+		break;
+	}
 	api_lock.unlock();
-	return (location_lba - start_lba) * geo.lba_size;
+	return nr_lbas * geo.lba_size;
 }
 
 void NvmeFileSystem::FileSync(FileHandle &handle) {

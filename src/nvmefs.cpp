@@ -344,9 +344,24 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 	// We only support seek to start of an LBA block
 	D_ASSERT(location % geo.lba_size == 0);
 
-	idx_t start_bound = GetStartLBA(nvme_handle.path);
-	idx_t end_bound = GetEndLBA(nvme_handle.path);
-	idx_t max_seek_bound = (end_bound - start_bound) * geo.lba_size;
+	MetadataType type = GetMetadataType(nvme_handle.path);
+	idx_t max_seek_bound = 0;
+	switch (type) {
+	case WAL:
+		// Reset the location poitner (next lba to write to) to the start effectively removing the wal
+		max_seek_bound = (metadata->write_ahead_log.end - metadata->write_ahead_log.start) * geo.lba_size;
+		break;
+	case DATABASE:
+		max_seek_bound = (metadata->database.end - metadata->database.start) * geo.lba_size;
+		break;
+	case TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[nvme_handle.path];
+		max_seek_bound = tfmeta.block_size * tfmeta.block_map.size();
+	} break;
+	default:
+		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
+		break;
+	}
 
 	if (location >= max_seek_bound) {
 		throw IOException("Seek location is out of bounds");

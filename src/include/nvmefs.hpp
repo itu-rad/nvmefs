@@ -7,6 +7,7 @@
 #include "device.hpp"
 #include "nvme_device.hpp"
 #include "nvmefs_config.hpp"
+#include "nvmefs_temporary_block_manager.hpp"
 
 namespace duckdb {
 
@@ -33,8 +34,8 @@ struct GlobalMetadata {
 };
 
 struct TemporaryFileMetadata {
-	uint64_t start;
-	uint64_t end;
+	uint64_t block_size;
+	map<idx_t, TemporaryBlock *> block_map;
 };
 
 class NvmeFileHandle : public FileHandle {
@@ -107,7 +108,7 @@ private:
 	void WriteMetadata(GlobalMetadata &global);
 	void UpdateMetadata(CmdContext &Context);
 	MetadataType GetMetadataType(const string &filename);
-	idx_t GetLBA(const string &filename, idx_t location);
+	idx_t GetLBA(const string &filename, idx_t nr_bytes, idx_t location);
 	idx_t GetStartLBA(const string &filename);
 	idx_t GetLocationLBA(const string &filename);
 	idx_t GetEndLBA(const string &filename);
@@ -125,6 +126,7 @@ private:
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<Device> device;
 	map<string, TemporaryFileMetadata> file_to_temp_meta;
+	NvmeTemporaryBlockManager temp_block_manager;
 	idx_t max_temp_size;
 	idx_t max_wal_size;
 	static std::recursive_mutex api_lock;

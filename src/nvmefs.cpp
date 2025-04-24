@@ -248,10 +248,19 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 		case MetadataType::DATABASE:
 			metadata->database.location = metadata->database.start + new_lba_location;
 			break;
-		case MetadataType::TEMPORARY:
-			// TODO: Handle fragmentation? Truncating a file that not have been allocated last
-			file_to_temp_meta[nvme_handle.path].end = file_to_temp_meta[nvme_handle.path].start + new_lba_location;
-			break;
+		case MetadataType::TEMPORARY: {
+			TemporaryFileMetadata tfmeta = file_to_temp_meta[nvme_handle.path];
+
+			idx_t to_block_index = new_size / tfmeta.block_size;
+			idx_t from_block_index = tfmeta.block_map.size();
+
+			for (idx_t i = from_block_index; i > from_block_index; i--) {
+				TemporaryBlock *block = tfmeta.block_map[i];
+				temp_block_manager.FreeBlock(block);
+
+				tfmeta.block_map.erase(i);
+			}
+		} break;
 		default:
 			throw InvalidInputException("Unknown metadata type");
 			break;

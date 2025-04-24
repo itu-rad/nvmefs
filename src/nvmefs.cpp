@@ -184,8 +184,8 @@ bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener>
 		break;
 	case DATABASE:
 		if (StringUtil::Equals(path_no_ext.data(), db_path_no_ext.data())) {
-			uint64_t start_lba = GetStartLBA(filename);
-			uint64_t location_lba = GetLocationLBA(filename);
+			uint64_t start_lba = metadata->database.start;
+			uint64_t location_lba = metadata->database.location;
 
 			if ((location_lba - start_lba) > 0) {
 				exists = true;

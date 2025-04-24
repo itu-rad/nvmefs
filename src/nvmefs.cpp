@@ -274,7 +274,9 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 				TemporaryBlock *block = tfmeta.block_map[i];
 				temp_block_manager->FreeBlock(block);
 
+				printf("Blockmap size before: %zu\n", tfmeta.block_map.size());
 				tfmeta.block_map.erase(i);
+				printf("Blockmap size after: %zu\n", tfmeta.block_map.size());
 			}
 			file_to_temp_meta[nvme_handle.path] = tfmeta;
 		} break;

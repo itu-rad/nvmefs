@@ -102,7 +102,7 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 
 	idx_t cursor_offset = SeekPosition(handle);
 	location += cursor_offset;
-	idx_t start_lba = GetLBA(handle.path, location);
+	idx_t start_lba = GetLBA(handle.path, nr_bytes, location);
 	idx_t in_block_offset = location % geo.lba_size;
 	unique_ptr<CmdContext> cmd_ctx = fh.PrepareReadCommand(nr_bytes, start_lba, in_block_offset);
 
@@ -256,7 +256,7 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 
 			for (idx_t i = from_block_index; i > from_block_index; i--) {
 				TemporaryBlock *block = tfmeta.block_map[i];
-				temp_block_manager.FreeBlock(block);
+				temp_block_manager->FreeBlock(block);
 
 				tfmeta.block_map.erase(i);
 			}
@@ -421,7 +421,7 @@ void NvmeFileSystem::InitializeMetadata(const string &filename) {
 	strncpy(global->db_path, filename.data(), filename.length());
 	global->db_path[100] = '\0';
 
-	temp_block_manager = NvmeTemporaryBlockManager(metadata->temporary.start, metadata->temporary.end);
+	temp_block_manager = make_uniq<NvmeTemporaryBlockManager>(metadata->temporary.start, metadata->temporary.end);
 
 	WriteMetadata(*global);
 
@@ -446,7 +446,7 @@ unique_ptr<GlobalMetadata> NvmeFileSystem::ReadMetadata() {
 	if (memcmp(buffer, NVMEFS_MAGIC_BYTES, nr_bytes_magic) == 0) {
 		global = make_uniq<GlobalMetadata>(GlobalMetadata {});
 		memcpy(global.get(), buffer + nr_bytes_magic, nr_bytes_global);
-		temp_block_manager = NvmeTemporaryBlockManager(global->temporary.start, global->temporary.end);
+		temp_block_manager = make_uniq<NvmeTemporaryBlockManager>(global->temporary.start, global->temporary.end);
 	}
 
 	allocator.FreeData(buffer, bytes_to_read);
@@ -543,7 +543,7 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 		if (file_to_temp_meta.count(filename)) {
 			tfmeta = file_to_temp_meta[filename];
 			if (!tfmeta.block_map.count(block_index)) {
-				TemporaryBlock *block = temp_block_manager.AllocateBlock(nr_lbas);
+				TemporaryBlock *block = temp_block_manager->AllocateBlock(nr_lbas);
 				tfmeta.block_map[block_index] = block;
 			}
 			lba = tfmeta.block_map[block_index]->GetStartLBA();
@@ -552,7 +552,7 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 			tfmeta = {.block_size = nr_bytes};
 			file_to_temp_meta[filename] = tfmeta;
 
-			TemporaryBlock *block = temp_block_manager.AllocateBlock(nr_lbas);
+			TemporaryBlock *block = temp_block_manager->AllocateBlock(nr_lbas);
 			file_to_temp_meta[filename].block_map[block_index] = block;
 			lba = block->GetStartLBA();
 		}

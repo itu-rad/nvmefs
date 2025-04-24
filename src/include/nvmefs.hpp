@@ -126,7 +126,7 @@ private:
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<Device> device;
 	map<string, TemporaryFileMetadata> file_to_temp_meta;
-	NvmeTemporaryBlockManager temp_block_manager;
+	unique_ptr<NvmeTemporaryBlockManager> temp_block_manager;
 	idx_t max_temp_size;
 	idx_t max_wal_size;
 	static std::recursive_mutex api_lock;

@@ -560,6 +560,7 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 				tfmeta.block_map[block_index] = block;
 			}
 			lba = tfmeta.block_map[block_index]->GetStartLBA();
+			file_to_temp_meta[filename] = tfmeta;
 
 		} else {
 			tfmeta = {.block_size = nr_lbas * geo.lba_size};
@@ -568,7 +569,6 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 			idx_t block_index = location / tfmeta.block_size;
 
 			TemporaryBlock *block = temp_block_manager->AllocateBlock(nr_lbas);
-			printf("Allocating block %d with size %d\n", block->GetStartLBA(), block->GetSizeInBytes());
 			file_to_temp_meta[filename].block_map[block_index] = block;
 			lba = block->GetStartLBA();
 		}

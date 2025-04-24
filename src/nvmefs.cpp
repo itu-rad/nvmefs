@@ -476,12 +476,9 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 		}
 		break;
 	case MetadataType::TEMPORARY:
-		if (ctx.start_lba >= metadata->temporary.location) {
-			metadata->temporary.location = ctx.start_lba + ctx.nr_lbas;
-			write = true;
-			TemporaryFileMetadata tfmeta = file_to_temp_meta[ctx.filepath];
-			file_to_temp_meta[ctx.filepath] = {tfmeta.start, metadata->temporary.location};
-		}
+		// The temporary metadata remain static given that location is unused.
+		// The file_to_temp_meta map will be updated during GetLBA, hence
+		// no action is required here.
 		break;
 	case MetadataType::DATABASE:
 		if (ctx.start_lba >= metadata->database.location) {

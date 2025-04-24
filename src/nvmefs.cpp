@@ -215,11 +215,25 @@ int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	MetadataType type = GetMetadataType(fh.path);
 
-	idx_t start_lba = GetStartLBA(fh.path);
-	idx_t location_lba = GetLocationLBA(fh.path);
-	// std::cout << "Unlocking GetFileSize\n";
+	idx_t nr_lbas{};
+	switch (type) {
+	case MetadataType::DATABASE:
+		nr_lbas = metadata->database.location - metadata->database.start;
+		break;
+	case MetadataType::TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[fh.path];
+		nr_lbas = tfmeta.block_size * tfmeta.block_map.size();
+		break;
+	}
+	case MetadataType::WAL:
+		nr_lbas = metadata->write_ahead_log.location - metadata->write_ahead_log.start;
+		break;
+	default:
+		throw InvalidInputException("Unknown metadata type!");
+		break;
+	}
 	api_lock.unlock();
-	return (location_lba - start_lba) * geo.lba_size;
+	return nr_lbas * geo.lba_size;
 }
 
 void NvmeFileSystem::FileSync(FileHandle &handle) {
@@ -314,7 +328,6 @@ void NvmeFileSystem::CreateDirectory(const string &directory, optional_ptr<FileO
 
 void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
 	api_lock.lock();
-	// std::cout << "Locking RemoveFile\n";
 	MetadataType type = GetMetadataType(filename);
 
 	switch (type) {
@@ -323,16 +336,17 @@ void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener>
 		metadata->write_ahead_log.location = metadata->write_ahead_log.start;
 		break;
 
-	case TEMPORARY:
-		// TODO: how do we determine if we need to move the temp metadata location pointer
-		// and what about fragmentation? is it even possible to use ringbuffer technique?
+	case TEMPORARY: {
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[filename];
+		for (const auto& kv : tfmeta.block_map) {
+			temp_block_manager.FreeBlock(kv.second);
+		}
 		file_to_temp_meta.erase(filename);
-		break;
+		} break;
 	default:
 		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
 		break;
 	}
-	// std::cout << "Unlocking RemoveFile\n";
 	api_lock.unlock();
 }
 
@@ -486,12 +500,9 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 		}
 		break;
 	case MetadataType::TEMPORARY:
-		if (ctx.start_lba >= metadata->temporary.location) {
-			metadata->temporary.location = ctx.start_lba + ctx.nr_lbas;
-			write = true;
-			TemporaryFileMetadata tfmeta = file_to_temp_meta[ctx.filepath];
-			file_to_temp_meta[ctx.filepath] = {tfmeta.start, metadata->temporary.location};
-		}
+		// The temporary metadata remain static given that location is unused.
+		// The file_to_temp_meta map will be updated during GetLBA, hence
+		// no action is required here.
 		break;
 	case MetadataType::DATABASE:
 		if (ctx.start_lba >= metadata->database.location) {

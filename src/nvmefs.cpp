@@ -215,7 +215,7 @@ int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	MetadataType type = GetMetadataType(fh.path);
 
-	idx_t nr_lbas{};
+	idx_t nr_lbas {};
 	switch (type) {
 	case MetadataType::DATABASE:
 		nr_lbas = metadata->database.location - metadata->database.start;
@@ -338,11 +338,11 @@ void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener>
 
 	case TEMPORARY: {
 		TemporaryFileMetadata tfmeta = file_to_temp_meta[filename];
-		for (const auto& kv : tfmeta.block_map) {
-			temp_block_manager.FreeBlock(kv.second);
+		for (const auto &kv : tfmeta.block_map) {
+			temp_block_manager->FreeBlock(kv.second);
 		}
 		file_to_temp_meta.erase(filename);
-		} break;
+	} break;
 	default:
 		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
 		break;
@@ -570,82 +570,6 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 	} break;
 	case MetadataType::DATABASE:
 		lba = metadata->database.start + lba_location;
-		break;
-	default:
-		throw InvalidInputException("No such metadata type");
-		break;
-	}
-
-	return lba;
-}
-
-idx_t NvmeFileSystem::GetStartLBA(const string &filename) {
-	idx_t lba {};
-	MetadataType type = GetMetadataType(filename);
-
-	switch (type) {
-	case MetadataType::WAL:
-		lba = metadata->write_ahead_log.start;
-		break;
-	case MetadataType::TEMPORARY: {
-		TemporaryFileMetadata tfmeta;
-		if (file_to_temp_meta.count(filename)) {
-			tfmeta = file_to_temp_meta[filename];
-			lba = tfmeta.start;
-		} else {
-			lba = metadata->temporary.location;
-			tfmeta = {.start = lba, .end = lba};
-			file_to_temp_meta[filename] = tfmeta;
-		}
-	} break;
-	case MetadataType::DATABASE:
-		lba = metadata->database.start;
-		break;
-	default:
-		throw InvalidInputException("No such metadata type");
-		break;
-	}
-
-	return lba;
-}
-
-idx_t NvmeFileSystem::GetLocationLBA(const string &filename) {
-	idx_t lba {};
-	MetadataType type = GetMetadataType(filename);
-
-	switch (type) {
-	case MetadataType::WAL:
-		lba = metadata->write_ahead_log.location;
-		break;
-	case MetadataType::TEMPORARY: {
-		TemporaryFileMetadata tfmeta = file_to_temp_meta[filename];
-		lba = tfmeta.end;
-	} break;
-	case MetadataType::DATABASE:
-		lba = metadata->database.location;
-		break;
-	default:
-		throw InvalidInputException("No such metadata type");
-		break;
-	}
-
-	return lba;
-}
-
-idx_t NvmeFileSystem::GetEndLBA(const string &filename) {
-	idx_t lba {};
-	MetadataType type = GetMetadataType(filename);
-
-	switch (type) {
-	case MetadataType::WAL:
-		lba = metadata->write_ahead_log.end;
-		break;
-	case MetadataType::TEMPORARY: {
-		TemporaryFileMetadata tfmeta = file_to_temp_meta[filename];
-		lba = tfmeta.end;
-	} break;
-	case MetadataType::DATABASE:
-		lba = metadata->database.end;
 		break;
 	default:
 		throw InvalidInputException("No such metadata type");

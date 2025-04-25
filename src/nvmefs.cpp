@@ -403,11 +403,11 @@ idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 
 bool NvmeFileSystem::ListFiles(const string &directory,
 	const std::function<void(const string &, bool)> &callback,
-	FileOpener *opener = nullptr) {
+	FileOpener *opener) {
 		api_lock.lock();
 		bool dir = false;
-		if (StringUtil::Equals(directory, NVMEFS_PATH_PREFIX)) {
-			const string db_filename_no_ext = StringUtil.GetFileStem(metadata->dp_path);
+		if (StringUtil::Equals(directory.data(), NVMEFS_PATH_PREFIX.data())) {
+			const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
 			const string db_filename_with_ext = db_filename_no_ext + ".db";
 			const string db_wal = db_filename_with_ext + ".wal";
 
@@ -416,7 +416,7 @@ bool NvmeFileSystem::ListFiles(const string &directory,
 			callback(db_wal, false);
 
 			dir = true;
-		} else if (StringUtil::Equals(directory, NVMEFS_TMP_DIR_PATH)) {
+		} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
 			for(const auto& kv : file_to_temp_meta) {
 				callback(kv.first, false);
 			}
@@ -428,13 +428,13 @@ bool NvmeFileSystem::ListFiles(const string &directory,
 
 optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
 	DeviceGeometry geo = device->GetDeviceGeometry();
-	const string db_filename_no_ext = StringUtil.GetFileStem(metadata->dp_path);
+	const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
 	const string db_filepath = NVMEFS_PATH_PREFIX + db_filename_no_ext + ".db";
 	const string wal_filepath = db_filepath + ".wal";
 
 	optional_idx remaining;
 
-	if (StringUtil::Equals(path, NVMEFS_PATH_PREFIX)){
+	if (StringUtil::Equals(path.data(), NVMEFS_PATH_PREFIX.data())){
 		idx_t db_max_bytes = (metadata->database.end - metadata->database.start) * geo.lba_size;
 		idx_t wal_max_bytes = (metadata->write_ahead_log.end - metadata->write_ahead_log.start) * geo.lba_size;
 		idx_t temp_max_bytes = (metadata->temporary.end - metadata->temporary.start) * geo.lba_size;
@@ -448,7 +448,7 @@ optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
 		}
 
 		remaining = (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + (temp_max_bytes - temp_used_bytes);
-	} else if (StringUtil::Equals(path, NVMEFS_TMP_DIR_PATH)) {
+	} else if (StringUtil::Equals(path.data(), NVMEFS_TMP_DIR_PATH.data())) {
 		idx_t temp_max_bytes = (metadata->temporary.end - metadata->temporary.start) * geo.lba_size;
 		idx_t temp_used_bytes{};
 

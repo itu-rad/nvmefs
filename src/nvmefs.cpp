@@ -426,6 +426,42 @@ bool NvmeFileSystem::ListFiles(const string &directory,
 		return dir;
 }
 
+optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
+	DeviceGeometry geo = device->GetDeviceGeometry();
+	const string db_filename_no_ext = StringUtil.GetFileStem(metadata->dp_path);
+	const string db_filepath = NVMEFS_PATH_PREFIX + db_filename_no_ext + ".db";
+	const string wal_filepath = db_filepath + ".wal";
+
+	optional_idx remaining;
+
+	if (StringUtil::Equals(path, NVMEFS_PATH_PREFIX)){
+		idx_t db_max_bytes = (metadata->database.end - metadata->database.start) * geo.lba_size;
+		idx_t wal_max_bytes = (metadata->write_ahead_log.end - metadata->write_ahead_log.start) * geo.lba_size;
+		idx_t temp_max_bytes = (metadata->temporary.end - metadata->temporary.start) * geo.lba_size;
+
+		idx_t db_used_bytes = (metadata->database.location - metadata->database.start) * geo.lba_size;
+		idx_t wal_used_bytes = (metadata->write_ahead_log.location - metadata->write_ahead_log.start) * geo.lba_size;
+		idx_t temp_used_bytes{};
+
+		for (const auto& kv : file_to_temp_meta) {
+			temp_used_bytes += kv.second.block_size * kv.second.block_map.size();
+		}
+
+		remaining = (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + (temp_max_bytes - temp_used_bytes);
+	} else if (StringUtil::Equals(path, NVMEFS_TMP_DIR_PATH)) {
+		idx_t temp_max_bytes = (metadata->temporary.end - metadata->temporary.start) * geo.lba_size;
+		idx_t temp_used_bytes{};
+
+		for (const auto& kv : file_to_temp_meta) {
+			temp_used_bytes += kv.second.block_size * kv.second.block_map.size();
+		}
+
+		remaining = (temp_max_bytes - temp_used_bytes);
+	}
+
+	return remaining;
+}
+
 Device &NvmeFileSystem::GetDevice() {
 	return *device;
 }

@@ -394,7 +394,8 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 }
 
 void NvmeFileSystem::Reset(FileHandle &handle) {
-	handle.SetFilePointer(0);
+	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
+	fh.SetFilePointer(0);
 }
 
 idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {

@@ -393,6 +393,10 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 	api_lock.unlock();
 }
 
+void NvmeFileSystem::Reset(FileHandle &handle) {
+	handle.SetFilePointer(0);
+}
+
 idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 	return handle.Cast<NvmeFileHandle>().GetFilePointer();
 }

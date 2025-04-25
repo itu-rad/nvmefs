@@ -93,6 +93,7 @@ public:
 	void CreateDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
 	void RemoveFile(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 	void Seek(FileHandle &handle, idx_t location) override;
+	void Reset(FileHandle &handle);
 	idx_t SeekPosition(FileHandle &handle) override;
 
 	Device &GetDevice();

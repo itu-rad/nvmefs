@@ -99,7 +99,7 @@ public:
 	bool ListFiles(const string &directory,
 		const std::function<void(const string &, bool)> &callback,
 		FileOpener *opener = nullptr);
-	optional_idx GetAvailableDiskSpace(const string &path)
+	optional_idx GetAvailableDiskSpace(const string &path);
 	Device &GetDevice();
 
 	string GetName() const {

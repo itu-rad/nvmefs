@@ -401,6 +401,31 @@ idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 	return handle.Cast<NvmeFileHandle>().GetFilePointer();
 }
 
+bool NvmeFileSystem::ListFiles(const string &directory,
+	const std::function<void(const string &, bool)> &callback,
+	FileOpener *opener = nullptr) {
+		api_lock.lock();
+		bool dir = false;
+		if (StringUtil::Equals(directory, NVMEFS_PATH_PREFIX)) {
+			const string db_filename_no_ext = StringUtil.GetFileStem(metadata->dp_path);
+			const string db_filename_with_ext = db_filename_no_ext + ".db";
+			const string db_wal = db_filename_with_ext + ".wal";
+
+			callback(db_filename_with_ext, false);
+			callback(NVMEFS_TMP_DIR_PATH, true);
+			callback(db_wal, false);
+
+			dir = true;
+		} else if (StringUtil::Equals(directory, NVMEFS_TMP_DIR_PATH)) {
+			for(const auto& kv : file_to_temp_meta) {
+				callback(kv.first, false);
+			}
+			dir = true;
+		}
+		api_lock.unlock();
+		return dir;
+}
+
 Device &NvmeFileSystem::GetDevice() {
 	return *device;
 }

@@ -6,14 +6,15 @@ from decimal import Decimal
 def tpch_database_connection(device):
     # Setup
 
-    con = duckdb.connect(config={"allow_unsigned_extensions": "true", "memory_limit": "500MB"})
+    con = duckdb.connect(config={"allow_unsigned_extensions": "true", "memory_limit": "50MB", "threads": 1})
     con.load_extension("nvmefs")
     con.load_extension("tpch")
 
     con.execute(f"""CREATE OR REPLACE PERSISTENT SECRET nvmefs (
                         TYPE NVMEFS,
                         nvme_device_path '{device.device_path}',
-                        fdp_plhdls       '{7}'
+                        fdp_plhdls       '{7}',
+                        backend          'nvme',
                     );""")
 
     con.execute("ATTACH DATABASE 'nvmefs:///tpch.db' AS test (READ_WRITE);")
@@ -26,18 +27,23 @@ def tpch_database_connection(device):
     # Teardown the database and data
     con.close()
 
-def test_large_query_and_spilling_to_disk(tpch_database_connection):
+tpchqueries = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21
+]
+
+@pytest.mark.parametrize("query", tpchqueries)
+def test_large_query_and_spilling_to_disk(query, tpch_database_connection):
     """
     Tests that the database using nvmefs can handle large queries and spills to disk
     """
 
     connection = tpch_database_connection
-    result = connection.execute("SELECT answer FROM tpch_answers() WHERE query_nr = 7 AND scale_factor = 1;").fetchall()
+    result = connection.execute(f"SELECT answer FROM tpch_answers() WHERE query_nr = {query} AND scale_factor = 1;").fetchall()
     result_rows = result[0][0].splitlines()[1:]
-    expected_query7_results = [(columns[0], columns[1], int(columns[2]), Decimal(columns[3])) for columns in 
+    expected_query_results = [(columns[0], columns[1], int(columns[2]), Decimal(columns[3])) for columns in 
                                [line.split("|") for line in result_rows]]
 
 
-    query7_result = connection.execute("PRAGMA tpch(7);").fetchall()
+    query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
 
-    assert query7_result == expected_query7_results
+    assert query_result == expected_query7_results

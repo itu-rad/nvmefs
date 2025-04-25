@@ -1,9 +1,12 @@
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include "nvmefs.hpp"
 #include "nvmefs_config.hpp"
 #include "nvmefs_temporary_block_manager.hpp"
 #include "utils/gtest_utils.hpp"
 #include "utils/fake_device.hpp"
+
+using ::testing::UnorderedElementsAre;
 
 namespace duckdb {
 
@@ -696,6 +699,94 @@ TEST_F(DiskInteractionTest, HandleWithOffsetEqualsZeroWhenReset) {
 	// Ensure that offset is zero
 	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
 }
+
+TEST_F(DiskInteractionTest, ListFilesOfPrefixDirectoryYieldsCorrectFilesAndDirStatus) {
+	const string db_filename = "nvmefs://test.db";
+	const string wal_filename = "nvmefs://test.db.wal";
+	const string tmp_dir_filepath = "nvmefs:///tmp";
+
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles("nvmefs://", lister);
+
+	EXPECT_EQ(dir, true);
+	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple(db_filename, false), std::make_tuple(tmp_dir_filepath, true), std::make_tuple(wal_filename, false)));
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectListOfFiles) {
+	const string tmp_dir_filepath = "nvmefs:///tmp";
+
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	// Open two temporary files, write to both and verify
+	unique_ptr<FileHandle> tmp_fh_1 = file_system->OpenFile("nvmefs:///tmp/file1", flags);
+	unique_ptr<FileHandle> tmp_fh_2 = file_system->OpenFile("nvmefs:///tmp/file2", flags);
+
+	vector<char> buf_h {'H', 'E', 'L', 'L', 'O'};
+	tmp_fh_1->Write(buf_h.data(), buf_h.size(),0);
+	tmp_fh_2->Write(buf_h.data(), buf_h.size(),0);
+
+	vector<char> res1_h(buf_h.size());
+	vector<char> res2_h(buf_h.size());
+	tmp_fh_1->Read(res1_h.data(), buf_h.size(), 0);
+	tmp_fh_2->Read(res2_h.data(), buf_h.size(), 0);
+
+	EXPECT_EQ(res1_h, buf_h);
+	EXPECT_EQ(res2_h, buf_h);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles(tmp_dir_filepath, lister);
+
+	EXPECT_EQ(dir, true)
+	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple("nvmefs:///tmp/file1", false), std::make_tuple("nvmefs:///tmp/file2", true)));
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfEmptyTemporaryDirectoryReturnsNothing){
+	const string tmp_dir_filepath = "nvmefs:///tmp";
+
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles(tmp_dir_filepath, lister);
+
+	EXPECT_EQ(dir, true);
+	EXPECT_EQ(results.empty(), true);
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfNonDirectoryPathReturnsFalse) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles("nvmefs://mumblejumbles", lister);
+
+	EXPECT_EQ(dir, false);
+	EXPECT_EQ(results.empty(), true);
+}
+
 
 class BlockManagerTest : public testing::Test {
 protected:

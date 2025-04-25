@@ -671,6 +671,32 @@ TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
 	delete[] data_ptr;
 }
 
+TEST_F(DiskInteractionTest, NewlyCreatedHandleOffsetRemainZeroAfterReset) {
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	NvmeFileHandle &nvme_fh = fh->Cast<NvmeFileHandle>();
+
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
+
+	file_system->Reset(nvme_fh);
+
+	// Offset still 0
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
+}
+
+TEST_F(DiskInteractionTest, HandleWithOffsetEqualsZeroWhenReset) {
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	NvmeFileHandle &nvme_fh = fh->Cast<NvmeFileHandle>();
+
+	// Seek 5k bytes into file
+	file_system->Seek(nvme_fh,5000);
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 5000);
+
+	file_system->Reset(nvme_fh);
+
+	// Ensure that offset is zero
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
+}
+
 class BlockManagerTest : public testing::Test {
 protected:
 	BlockManagerTest() {

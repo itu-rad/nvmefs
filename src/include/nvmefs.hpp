@@ -94,6 +94,7 @@ public:
 	void RemoveFile(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 	void Seek(FileHandle &handle, idx_t location) override;
 	idx_t SeekPosition(FileHandle &handle) override;
+	bool Trim(FileHandle &handle, idx_t offset_bytes, idx_t length_bytes) override;
 
 	Device &GetDevice();
 

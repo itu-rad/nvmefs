@@ -411,15 +411,16 @@ bool NvmeFileSystem::ListFiles(const string &directory,
 			const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
 			const string db_filename_with_ext = db_filename_no_ext + ".db";
 			const string db_wal = db_filename_with_ext + ".wal";
+			const string db_tmp = "/tmp";
 
 			callback(db_filename_with_ext, false);
-			callback(NVMEFS_TMP_DIR_PATH, true);
+			callback(db_tmp, true);
 			callback(db_wal, false);
 
 			dir = true;
 		} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
 			for(const auto& kv : file_to_temp_meta) {
-				callback(kv.first, false);
+				callback(StringUtil::GetFileName(kv.first), false);
 			}
 			dir = true;
 		}

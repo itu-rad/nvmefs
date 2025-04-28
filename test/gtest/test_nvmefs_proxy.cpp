@@ -701,9 +701,9 @@ TEST_F(DiskInteractionTest, HandleWithOffsetEqualsZeroWhenReset) {
 }
 
 TEST_F(DiskInteractionTest, ListFilesOfPrefixDirectoryYieldsCorrectFilesAndDirStatus) {
-	const string db_filename = "nvmefs://test.db";
-	const string wal_filename = "nvmefs://test.db.wal";
-	const string tmp_dir_filepath = "nvmefs:///tmp";
+	const string db_filename = "test.db";
+	const string wal_filename = "test.db.wal";
+	const string tmp_dir_filepath = "/tmp";
 
 	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
 
@@ -749,8 +749,8 @@ TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectLi
 
 	bool dir = file_system->ListFiles(tmp_dir_filepath, lister);
 
-	EXPECT_EQ(dir, true)
-	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple("nvmefs:///tmp/file1", false), std::make_tuple("nvmefs:///tmp/file2", true)));
+	EXPECT_EQ(dir, true);
+	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple("file1", false), std::make_tuple("file2", false)));
 }
 
 TEST_F(DiskInteractionTest, ListFilesOfEmptyTemporaryDirectoryReturnsNothing){

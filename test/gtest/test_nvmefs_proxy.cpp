@@ -641,6 +641,90 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForTmpFile) {
 	delete[] data_ptr;
 }
 
+TEST_F(DiskInteractionTest, TrimUnwrittenLocationInFile) {
+	int page_size = 4096 * 64; // One page
+
+	// Create a file
+	string file_path = "nvmefs://test.db";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	ASSERT_TRUE(file->GetFileSize() == 0);
+
+	// Attempt to write data out of range
+	file->Trim(0, page_size * 2);
+
+	EXPECT_EQ(file->GetFileSize(), page_size * 2);
+}
+
+TEST_F(DiskInteractionTest, TrimWrittenLocationInFileRemovesWrittenDataButKeepsSize) {
+	int page_size = 4096 * 64; // One page
+
+	// Create a file
+	string file_path = "nvmefs://test.db";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	ASSERT_TRUE(file != nullptr);
+
+	// Write some data to the file
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	file->Write(data_ptr.data(), data_size, page_size * 4); // Write data at the 16th byte of the device
+
+	// Read the data back
+	vector<char> buffer(data_size);
+	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
+
+	// Check that the data is correct
+	EXPECT_EQ(string(buffer.data(), data_size), hello);
+
+	file->Trim(page_size * 4, data_size);
+
+	memset(buffer.data(), 0, data_size);
+	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
+
+	// Check that the data is correct
+	EXPECT_NE(string(buffer.data(), data_size), hello);
+	EXPECT_EQ(file->GetFileSize(), page_size * 4 + 4096); // 4 pages + 1 lba
+}
+
+TEST_F(DiskInteractionTest, TrimWrittenLocationInFileFromSeekPositionRemovesWrittenDataButKeepsSize) {
+	int page_size = 4096 * 64; // One page
+
+	// Create a file
+	string file_path = "nvmefs://test.db";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	ASSERT_TRUE(file != nullptr);
+
+	// Write some data to the file
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	file->Write(data_ptr.data(), data_size, page_size * 4); // Write data at the 16th byte of the device
+
+	// Read the data back
+	vector<char> buffer(data_size);
+	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
+
+	// Check that the data is correct
+	EXPECT_EQ(string(buffer.data(), data_size), hello);
+
+	file->Seek(page_size * 3);
+
+	file->Trim(page_size, data_size);
+
+	memset(buffer.data(), 0, data_size);
+	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
+
+	// Check that the data is correct
+	EXPECT_NE(string(buffer.data(), data_size), hello);
+	EXPECT_EQ(file->GetFileSize(), page_size * 4 + 4096); // 4 pages + 1 lba
+}
+
 TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
 	// Create a file
 	string file_path =

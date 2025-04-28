@@ -468,6 +468,16 @@ Device &NvmeFileSystem::GetDevice() {
 	return *device;
 }
 
+bool NvmeFileSystem::Trim(FileHandle &handle, idx_t offset_bytes, idx_t length_bytes) {
+	data_ptr_t data = allocator.AllocateData(length_bytes);
+
+	memset(data, 0, length_bytes);
+	Write(handle, data, length_bytes, offset_bytes);
+
+	allocator.FreeData(data, length_bytes);
+	return true;
+}
+
 bool NvmeFileSystem::TryLoadMetadata() {
 	if (metadata) {
 		return true;

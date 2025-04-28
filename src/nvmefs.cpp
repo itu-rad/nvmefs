@@ -264,13 +264,10 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 				idx_t block_index = i - 1;
 				TemporaryBlock *block = tfmeta.block_map[block_index];
 				temp_block_manager->FreeBlock(block);
-
-				printf("Blockmap size before: %zu\n", tfmeta.block_map.size());
 				tfmeta.block_map.erase(block_index);
-				printf("Blockmap size after: %zu\n", tfmeta.block_map.size());
 			}
+
 			file_to_temp_meta[nvme_handle.path] = tfmeta;
-			printf("Blockmap size after truncation: %zu\n", file_to_temp_meta[nvme_handle.path].block_map.size());
 		} break;
 		default:
 			throw InvalidInputException("Unknown metadata type");

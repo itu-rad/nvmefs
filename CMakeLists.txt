@@ -11,6 +11,7 @@ include_directories(src/include)
 
 set(EXTENSION_SOURCES 
   src/nvmefs_extension.cpp
+  src/nvmefs_temporary_block_manager.cpp
   src/nvmefs.cpp
   src/nvmefs_config.cpp
   src/device.cpp

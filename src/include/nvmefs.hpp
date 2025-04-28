@@ -7,12 +7,14 @@
 #include "device.hpp"
 #include "nvme_device.hpp"
 #include "nvmefs_config.hpp"
+#include "nvmefs_temporary_block_manager.hpp"
 
 namespace duckdb {
 
 constexpr idx_t NVMEFS_GLOBAL_METADATA_LOCATION = 0;
 constexpr char NVMEFS_MAGIC_BYTES[] = "NVMEFS";
 const string NVMEFS_PATH_PREFIX = "nvmefs://";
+const string NVMEFS_TMP_DIR_PATH = "nvmefs:///tmp";
 const string NVMEFS_GLOBAL_METADATA_PATH = "nvmefs://.global_metadata";
 
 enum MetadataType { DATABASE, WAL, TEMPORARY };
@@ -33,8 +35,8 @@ struct GlobalMetadata {
 };
 
 struct TemporaryFileMetadata {
-	uint64_t start;
-	uint64_t end;
+	uint64_t block_size;
+	map<idx_t, TemporaryBlock *> block_map;
 };
 
 class NvmeFileHandle : public FileHandle {
@@ -92,7 +94,13 @@ public:
 	void CreateDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
 	void RemoveFile(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 	void Seek(FileHandle &handle, idx_t location) override;
+	void Reset(FileHandle &handle);
 	idx_t SeekPosition(FileHandle &handle) override;
+	bool ListFiles(const string &directory,
+		const std::function<void(const string &, bool)> &callback,
+		FileOpener *opener = nullptr);
+	optional_idx GetAvailableDiskSpace(const string &path);
+	bool Trim(FileHandle &handle, idx_t offset_bytes, idx_t length_bytes) override;
 
 	Device &GetDevice();
 
@@ -107,10 +115,7 @@ private:
 	void WriteMetadata(GlobalMetadata &global);
 	void UpdateMetadata(CmdContext &Context);
 	MetadataType GetMetadataType(const string &filename);
-	idx_t GetLBA(const string &filename, idx_t location);
-	idx_t GetStartLBA(const string &filename);
-	idx_t GetLocationLBA(const string &filename);
-	idx_t GetEndLBA(const string &filename);
+	idx_t GetLBA(const string &filename, idx_t nr_bytes, idx_t location, idx_t nr_lbas);
 
 	/// @brief Checks that the start_lba is within the assigned metadata range and that lba_start+lba_count is within
 	/// the assigned metadata range
@@ -125,7 +130,9 @@ private:
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<Device> device;
 	map<string, TemporaryFileMetadata> file_to_temp_meta;
+	unique_ptr<NvmeTemporaryBlockManager> temp_block_manager;
 	idx_t max_temp_size;
 	idx_t max_wal_size;
+	static std::recursive_mutex api_lock;
 };
 } // namespace duckdb

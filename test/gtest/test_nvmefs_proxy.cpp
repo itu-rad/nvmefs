@@ -1,8 +1,12 @@
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include "nvmefs.hpp"
 #include "nvmefs_config.hpp"
+#include "nvmefs_temporary_block_manager.hpp"
 #include "utils/gtest_utils.hpp"
 #include "utils/fake_device.hpp"
+
+using ::testing::UnorderedElementsAre;
 
 namespace duckdb {
 
@@ -637,6 +641,90 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForTmpFile) {
 	delete[] data_ptr;
 }
 
+TEST_F(DiskInteractionTest, TrimUnwrittenLocationInFile) {
+	int page_size = 4096 * 64; // One page
+
+	// Create a file
+	string file_path = "nvmefs://test.db";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	ASSERT_TRUE(file->GetFileSize() == 0);
+
+	// Attempt to write data out of range
+	file->Trim(0, page_size * 2);
+
+	EXPECT_EQ(file->GetFileSize(), page_size * 2);
+}
+
+TEST_F(DiskInteractionTest, TrimWrittenLocationInFileRemovesWrittenDataButKeepsSize) {
+	int page_size = 4096 * 64; // One page
+
+	// Create a file
+	string file_path = "nvmefs://test.db";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	ASSERT_TRUE(file != nullptr);
+
+	// Write some data to the file
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	file->Write(data_ptr.data(), data_size, page_size * 4); // Write data at the 16th byte of the device
+
+	// Read the data back
+	vector<char> buffer(data_size);
+	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
+
+	// Check that the data is correct
+	EXPECT_EQ(string(buffer.data(), data_size), hello);
+
+	file->Trim(page_size * 4, data_size);
+
+	memset(buffer.data(), 0, data_size);
+	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
+
+	// Check that the data is correct
+	EXPECT_NE(string(buffer.data(), data_size), hello);
+	EXPECT_EQ(file->GetFileSize(), page_size * 4 + 4096); // 4 pages + 1 lba
+}
+
+TEST_F(DiskInteractionTest, TrimWrittenLocationInFileFromSeekPositionRemovesWrittenDataButKeepsSize) {
+	int page_size = 4096 * 64; // One page
+
+	// Create a file
+	string file_path = "nvmefs://test.db";
+	unique_ptr<FileHandle> file =
+	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	ASSERT_TRUE(file != nullptr);
+
+	// Write some data to the file
+	string hello = "Hello, World!";
+	vector<char> data_ptr {hello.begin(), hello.end()};
+	int data_size = data_ptr.size();
+	file->Write(data_ptr.data(), data_size, page_size * 4); // Write data at the 16th byte of the device
+
+	// Read the data back
+	vector<char> buffer(data_size);
+	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
+
+	// Check that the data is correct
+	EXPECT_EQ(string(buffer.data(), data_size), hello);
+
+	file->Seek(page_size * 3);
+
+	file->Trim(page_size, data_size);
+
+	memset(buffer.data(), 0, data_size);
+	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
+
+	// Check that the data is correct
+	EXPECT_NE(string(buffer.data(), data_size), hello);
+	EXPECT_EQ(file->GetFileSize(), page_size * 4 + 4096); // 4 pages + 1 lba
+}
+
 TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
 	// Create a file
 	string file_path =
@@ -668,6 +756,358 @@ TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
 	EXPECT_EQ(string(read_buffer.data(), read_buffer.size()), hello);
 
 	delete[] data_ptr;
+}
+
+TEST_F(DiskInteractionTest, NewlyCreatedHandleOffsetRemainZeroAfterReset) {
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	NvmeFileHandle &nvme_fh = fh->Cast<NvmeFileHandle>();
+
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
+
+	file_system->Reset(nvme_fh);
+
+	// Offset still 0
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
+}
+
+TEST_F(DiskInteractionTest, HandleWithOffsetEqualsZeroWhenReset) {
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	NvmeFileHandle &nvme_fh = fh->Cast<NvmeFileHandle>();
+
+	// Seek 5k bytes into file
+	file_system->Seek(nvme_fh,5000);
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 5000);
+
+	file_system->Reset(nvme_fh);
+
+	// Ensure that offset is zero
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfPrefixDirectoryYieldsCorrectFilesAndDirStatus) {
+	const string db_filename = "test.db";
+	const string wal_filename = "test.db.wal";
+	const string tmp_dir_filepath = "/tmp";
+
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles("nvmefs://", lister);
+
+	EXPECT_EQ(dir, true);
+	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple(db_filename, false), std::make_tuple(tmp_dir_filepath, true), std::make_tuple(wal_filename, false)));
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectListOfFiles) {
+	const string tmp_dir_filepath = "nvmefs:///tmp";
+
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	// Open two temporary files, write to both and verify
+	unique_ptr<FileHandle> tmp_fh_1 = file_system->OpenFile("nvmefs:///tmp/file1", flags);
+	unique_ptr<FileHandle> tmp_fh_2 = file_system->OpenFile("nvmefs:///tmp/file2", flags);
+
+	vector<char> buf_h {'H', 'E', 'L', 'L', 'O'};
+	tmp_fh_1->Write(buf_h.data(), buf_h.size(),0);
+	tmp_fh_2->Write(buf_h.data(), buf_h.size(),0);
+
+	vector<char> res1_h(buf_h.size());
+	vector<char> res2_h(buf_h.size());
+	tmp_fh_1->Read(res1_h.data(), buf_h.size(), 0);
+	tmp_fh_2->Read(res2_h.data(), buf_h.size(), 0);
+
+	EXPECT_EQ(res1_h, buf_h);
+	EXPECT_EQ(res2_h, buf_h);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles(tmp_dir_filepath, lister);
+
+	EXPECT_EQ(dir, true);
+	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple("file1", false), std::make_tuple("file2", false)));
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfEmptyTemporaryDirectoryReturnsNothing){
+	const string tmp_dir_filepath = "nvmefs:///tmp";
+
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles(tmp_dir_filepath, lister);
+
+	EXPECT_EQ(dir, true);
+	EXPECT_EQ(results.empty(), true);
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfNonDirectoryPathReturnsFalse) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles("nvmefs://mumblejumbles", lister);
+
+	EXPECT_EQ(dir, false);
+	EXPECT_EQ(results.empty(), true);
+}
+
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWithNoAllocationReturnsCorrectSize) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// We allocate 1 LBA for global metadata and
+	// SingleFileBlockManager::CreateNewDatabase() writes 3 headers (3 LBAs)
+
+	idx_t expected_size = geo.lba_count * geo.lba_size - (4 * geo.lba_size);
+	optional_idx result = file_system->GetAvailableDiskSpace("nvmefs://");
+	ASSERT_TRUE(result.IsValid());
+	EXPECT_EQ(result.GetIndex(), expected_size);
+}
+
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWritesInTmpAndWalReturnsCorrectSize) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// We allocate 1 LBA for global metadata and
+	// SingleFileBlockManager::CreateNewDatabase() writes 3 headers (3 LBAs)
+
+	// Temp file with 2 LBAs and WAL with 1 LBA written
+	idx_t expected_size = (geo.lba_count * geo.lba_size) - (2 * geo.lba_size) - geo.lba_size - (4 * geo.lba_size);
+
+	// Allocate files and write to them
+	unique_ptr<FileHandle> tmp_fh = file_system->OpenFile("nvmefs:///tmp/test", flags);
+	unique_ptr<FileHandle> wal_fh = file_system->OpenFile("nvmefs://test.db.wal", flags);
+	vector<char> tmp_buf(2 * geo.lba_size);
+	vector<char> wal_buf(geo.lba_size);
+	memset(tmp_buf.data(), 1, 2*geo.lba_size);
+	memset(wal_buf.data(), 1, geo.lba_size);
+	tmp_fh->Write(tmp_buf.data(), 2*geo.lba_size);
+	wal_fh->Write(wal_buf.data(), geo.lba_size);
+
+	// Get size and evaluate
+	optional_idx result_size = file_system->GetAvailableDiskSpace("nvmefs://");
+	ASSERT_TRUE(result_size.IsValid());
+	EXPECT_EQ(result_size.GetIndex(), expected_size);
+}
+
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceTmpDirectoryWithTwoFilesReturnCorrectSize){
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// Two temp files with 2 and 3 LBAs written to them
+	// Allocate files and write to them
+	unique_ptr<FileHandle> test1_fh = file_system->OpenFile("nvmefs:///tmp/test1", flags);
+	unique_ptr<FileHandle> test2_fh = file_system->OpenFile("nvmefs:///tmp/test2", flags);
+	vector<char> test1_buf(3*geo.lba_size);
+	vector<char> test2_buf(2*geo.lba_size);
+	memset(test1_buf.data(), 1, 3*geo.lba_size);
+	memset(test2_buf.data(), 1, 2*geo.lba_size);
+	test1_fh->Write(test1_buf.data(), 3*geo.lba_size);
+	test2_fh->Write(test2_buf.data(), 2*geo.lba_size);
+
+	// check
+	// Cheating a bit - max_temp_size is private.
+	// The temp dir size for the tests is 640 LBAs
+	idx_t expected_size = (640 * geo.lba_size) - (3 * geo.lba_size) - (2 * geo.lba_size);
+	optional_idx result_size = file_system->GetAvailableDiskSpace("nvmefs:///tmp");
+	ASSERT_TRUE(result_size.IsValid());
+	EXPECT_EQ(result_size.GetIndex(), expected_size);
+}
+
+class BlockManagerTest : public testing::Test {
+protected:
+	BlockManagerTest() {
+		// Set up the test environment
+		block_manager = make_uniq<NvmeTemporaryBlockManager>(0, 1024);
+	}
+
+	unique_ptr<NvmeTemporaryBlockManager> block_manager;
+};
+
+TEST_F(BlockManagerTest, FirstAllocateBlock) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+
+	// Check that the block is allocated correctly
+	EXPECT_EQ(block->GetStartLBA(), 0);
+	EXPECT_EQ(block->GetEndLBA(), 7);
+	EXPECT_EQ(block->GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block->IsFree(), false);
+}
+
+TEST_F(BlockManagerTest, AllocateTwiceInARow) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+
+	// Check that the block is allocated correctly
+	EXPECT_EQ(block->GetStartLBA(), 0);
+	EXPECT_EQ(block->GetEndLBA(), 7);
+	EXPECT_EQ(block->GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block->IsFree(), false);
+
+	EXPECT_EQ(block2->GetStartLBA(), 8);
+	EXPECT_EQ(block2->GetEndLBA(), 15);
+	EXPECT_EQ(block2->GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block2->IsFree(), false);
+	EXPECT_EQ(block->GetEndLBA() + 1, block2->GetStartLBA());
+}
+
+TEST_F(BlockManagerTest, AllocateFreeAndAllocateAgainYieldsSameBlock) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+
+	// Check that the block is allocated correctly
+	idx_t start_lba = block->GetStartLBA();
+	idx_t end_lba = block->GetEndLBA();
+	idx_t size = block->GetSizeInBytes();
+	bool is_free = block->IsFree();
+
+	block_manager->FreeBlock(block);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+
+	EXPECT_EQ(block2->GetStartLBA(), start_lba);
+	EXPECT_EQ(block2->GetEndLBA(), end_lba);
+	EXPECT_EQ(block2->GetSizeInBytes(), size);
+	EXPECT_EQ(block2->IsFree(), is_free);
+}
+
+TEST_F(BlockManagerTest,
+       AllocateSameSizeThreeTimesFreeTheMiddleAllocationAndAllocateALargerObjectYieldsBlockAfterBlock3) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block->GetStartLBA() == 0);
+	ASSERT_TRUE(block2->GetStartLBA() == block->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetStartLBA() == block2->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetEndLBA() == block3->GetStartLBA() + 7);
+
+	// Check that the block is allocated correctly
+	idx_t start_lba = block2->GetStartLBA();
+	idx_t end_lba = block2->GetEndLBA();
+
+	block_manager->FreeBlock(block2);
+	TemporaryBlock *block4 = block_manager->AllocateBlock(16);
+
+	EXPECT_EQ(block4->GetStartLBA(), block3->GetEndLBA() + 1);
+	EXPECT_EQ(block4->GetEndLBA(), block4->GetStartLBA() + 15);
+	EXPECT_EQ(block4->GetSizeInBytes(), 16 * 4096);
+	EXPECT_EQ(block4->IsFree(), false);
+}
+
+TEST_F(BlockManagerTest,
+       AllocateFreeBlocksAndFreeSurroundingBlocksAndAllocateALargerBlockYieldsBlockThatStartsFromSameLocation) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block->GetStartLBA() == 0);
+	ASSERT_TRUE(block2->GetStartLBA() == block->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetStartLBA() == block2->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetEndLBA() == block3->GetStartLBA() + 7);
+
+	// Check that the block is allocated correctly
+	block_manager->FreeBlock(block);  // Should not coalesce anything
+	block_manager->FreeBlock(block3); // Should coalesce with the original large block
+	block_manager->FreeBlock(block2); // Should coalesce with block and block3 and move it to the large block free list
+
+	TemporaryBlock *block4 = block_manager->AllocateBlock(24);
+
+	EXPECT_EQ(block4->GetStartLBA(), 0);
+	EXPECT_EQ(block4->GetEndLBA(), 23);
+	EXPECT_EQ(block4->GetSizeInBytes(), 24 * 4096);
+	EXPECT_EQ(block4->IsFree(), false);
+}
+
+TEST_F(
+    BlockManagerTest,
+    AllocateBlocksAndFreeTheMiddleBlockToTriggerCoalescingToTheLeftAndAcquireANewBlockThatShouldStartFromTheSameLocation) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block->GetStartLBA() == 0);
+	ASSERT_TRUE(block2->GetStartLBA() == block->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetStartLBA() == block2->GetEndLBA() + 1);
+	ASSERT_TRUE(block3->GetEndLBA() == block3->GetStartLBA() + 7);
+
+	// Check that the block is allocated correctly
+	block_manager->FreeBlock(block); // Should not coalesce anything
+	block_manager->FreeBlock(block2);
+	block_manager->FreeBlock(block3); // Should coalesce with the original large block
+
+	TemporaryBlock *block4 = block_manager->AllocateBlock(16);
+
+	EXPECT_EQ(block4->GetStartLBA(), 0);
+	EXPECT_EQ(block4->GetEndLBA(), 15);
+	EXPECT_EQ(block4->GetSizeInBytes(), 16 * 4096);
+	EXPECT_EQ(block4->IsFree(), false);
+}
+
+TEST_F(BlockManagerTest, FreelistRemoveOneAtATime) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block1 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block4 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block50 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block4->GetStartLBA() == block3->GetEndLBA() + 1);
+
+	// Check that the block is allocated correctly
+	block_manager->FreeBlock(block2);
+	block_manager->FreeBlock(block4); // Should coalesce with the original large block
+
+	TemporaryBlock *block = block_manager->AllocateBlock(8);
+
+	EXPECT_EQ(block->GetStartLBA(), 24);
+	EXPECT_EQ(block->GetEndLBA(), 31);
+	EXPECT_EQ(block->GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block->IsFree(), false);
+
+	TemporaryBlock *block5 = block_manager->AllocateBlock(8);
+
+	EXPECT_EQ(block5->GetStartLBA(), 8);
+	EXPECT_EQ(block5->GetEndLBA(), 15);
+	EXPECT_EQ(block5->GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block5->IsFree(), false);
 }
 
 } // namespace duckdb

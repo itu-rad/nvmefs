@@ -1,9 +1,12 @@
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include "nvmefs.hpp"
 #include "nvmefs_config.hpp"
 #include "nvmefs_temporary_block_manager.hpp"
 #include "utils/gtest_utils.hpp"
 #include "utils/fake_device.hpp"
+
+using ::testing::UnorderedElementsAre;
 
 namespace duckdb {
 
@@ -753,6 +756,188 @@ TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
 	EXPECT_EQ(string(read_buffer.data(), read_buffer.size()), hello);
 
 	delete[] data_ptr;
+}
+
+TEST_F(DiskInteractionTest, NewlyCreatedHandleOffsetRemainZeroAfterReset) {
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	NvmeFileHandle &nvme_fh = fh->Cast<NvmeFileHandle>();
+
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
+
+	file_system->Reset(nvme_fh);
+
+	// Offset still 0
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
+}
+
+TEST_F(DiskInteractionTest, HandleWithOffsetEqualsZeroWhenReset) {
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	NvmeFileHandle &nvme_fh = fh->Cast<NvmeFileHandle>();
+
+	// Seek 5k bytes into file
+	file_system->Seek(nvme_fh,5000);
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 5000);
+
+	file_system->Reset(nvme_fh);
+
+	// Ensure that offset is zero
+	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfPrefixDirectoryYieldsCorrectFilesAndDirStatus) {
+	const string db_filename = "test.db";
+	const string wal_filename = "test.db.wal";
+	const string tmp_dir_filepath = "/tmp";
+
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles("nvmefs://", lister);
+
+	EXPECT_EQ(dir, true);
+	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple(db_filename, false), std::make_tuple(tmp_dir_filepath, true), std::make_tuple(wal_filename, false)));
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectListOfFiles) {
+	const string tmp_dir_filepath = "nvmefs:///tmp";
+
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	// Open two temporary files, write to both and verify
+	unique_ptr<FileHandle> tmp_fh_1 = file_system->OpenFile("nvmefs:///tmp/file1", flags);
+	unique_ptr<FileHandle> tmp_fh_2 = file_system->OpenFile("nvmefs:///tmp/file2", flags);
+
+	vector<char> buf_h {'H', 'E', 'L', 'L', 'O'};
+	tmp_fh_1->Write(buf_h.data(), buf_h.size(),0);
+	tmp_fh_2->Write(buf_h.data(), buf_h.size(),0);
+
+	vector<char> res1_h(buf_h.size());
+	vector<char> res2_h(buf_h.size());
+	tmp_fh_1->Read(res1_h.data(), buf_h.size(), 0);
+	tmp_fh_2->Read(res2_h.data(), buf_h.size(), 0);
+
+	EXPECT_EQ(res1_h, buf_h);
+	EXPECT_EQ(res2_h, buf_h);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles(tmp_dir_filepath, lister);
+
+	EXPECT_EQ(dir, true);
+	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple("file1", false), std::make_tuple("file2", false)));
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfEmptyTemporaryDirectoryReturnsNothing){
+	const string tmp_dir_filepath = "nvmefs:///tmp";
+
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles(tmp_dir_filepath, lister);
+
+	EXPECT_EQ(dir, true);
+	EXPECT_EQ(results.empty(), true);
+}
+
+TEST_F(DiskInteractionTest, ListFilesOfNonDirectoryPathReturnsFalse) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	vector<std::tuple<string, bool>> results;
+
+	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+		results.push_back(std::make_tuple(directory, is_dir));
+	};
+
+	bool dir = file_system->ListFiles("nvmefs://mumblejumbles", lister);
+
+	EXPECT_EQ(dir, false);
+	EXPECT_EQ(results.empty(), true);
+}
+
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWithNoAllocationReturnsCorrectSize) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// We allocate 1 LBA for global metadata and
+	// SingleFileBlockManager::CreateNewDatabase() writes 3 headers (3 LBAs)
+
+	idx_t expected_size = geo.lba_count * geo.lba_size - (4 * geo.lba_size);
+	optional_idx result = file_system->GetAvailableDiskSpace("nvmefs://");
+	ASSERT_TRUE(result.IsValid());
+	EXPECT_EQ(result.GetIndex(), expected_size);
+}
+
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWritesInTmpAndWalReturnsCorrectSize) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// We allocate 1 LBA for global metadata and
+	// SingleFileBlockManager::CreateNewDatabase() writes 3 headers (3 LBAs)
+
+	// Temp file with 2 LBAs and WAL with 1 LBA written
+	idx_t expected_size = (geo.lba_count * geo.lba_size) - (2 * geo.lba_size) - geo.lba_size - (4 * geo.lba_size);
+
+	// Allocate files and write to them
+	unique_ptr<FileHandle> tmp_fh = file_system->OpenFile("nvmefs:///tmp/test", flags);
+	unique_ptr<FileHandle> wal_fh = file_system->OpenFile("nvmefs://test.db.wal", flags);
+	vector<char> tmp_buf(2 * geo.lba_size);
+	vector<char> wal_buf(geo.lba_size);
+	memset(tmp_buf.data(), 1, 2*geo.lba_size);
+	memset(wal_buf.data(), 1, geo.lba_size);
+	tmp_fh->Write(tmp_buf.data(), 2*geo.lba_size);
+	wal_fh->Write(wal_buf.data(), geo.lba_size);
+
+	// Get size and evaluate
+	optional_idx result_size = file_system->GetAvailableDiskSpace("nvmefs://");
+	ASSERT_TRUE(result_size.IsValid());
+	EXPECT_EQ(result_size.GetIndex(), expected_size);
+}
+
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceTmpDirectoryWithTwoFilesReturnCorrectSize){
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// Two temp files with 2 and 3 LBAs written to them
+	// Allocate files and write to them
+	unique_ptr<FileHandle> test1_fh = file_system->OpenFile("nvmefs:///tmp/test1", flags);
+	unique_ptr<FileHandle> test2_fh = file_system->OpenFile("nvmefs:///tmp/test2", flags);
+	vector<char> test1_buf(3*geo.lba_size);
+	vector<char> test2_buf(2*geo.lba_size);
+	memset(test1_buf.data(), 1, 3*geo.lba_size);
+	memset(test2_buf.data(), 1, 2*geo.lba_size);
+	test1_fh->Write(test1_buf.data(), 3*geo.lba_size);
+	test2_fh->Write(test2_buf.data(), 2*geo.lba_size);
+
+	// check
+	// Cheating a bit - max_temp_size is private.
+	// The temp dir size for the tests is 640 LBAs
+	idx_t expected_size = (640 * geo.lba_size) - (3 * geo.lba_size) - (2 * geo.lba_size);
+	optional_idx result_size = file_system->GetAvailableDiskSpace("nvmefs:///tmp");
+	ASSERT_TRUE(result_size.IsValid());
+	EXPECT_EQ(result_size.GetIndex(), expected_size);
 }
 
 class BlockManagerTest : public testing::Test {

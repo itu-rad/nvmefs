@@ -14,6 +14,7 @@ namespace duckdb {
 constexpr idx_t NVMEFS_GLOBAL_METADATA_LOCATION = 0;
 constexpr char NVMEFS_MAGIC_BYTES[] = "NVMEFS";
 const string NVMEFS_PATH_PREFIX = "nvmefs://";
+const string NVMEFS_TMP_DIR_PATH = "nvmefs:///tmp";
 const string NVMEFS_GLOBAL_METADATA_PATH = "nvmefs://.global_metadata";
 
 enum MetadataType { DATABASE, WAL, TEMPORARY };
@@ -93,7 +94,12 @@ public:
 	void CreateDirectory(const string &directory, optional_ptr<FileOpener> opener = nullptr) override;
 	void RemoveFile(const string &filename, optional_ptr<FileOpener> opener = nullptr) override;
 	void Seek(FileHandle &handle, idx_t location) override;
+	void Reset(FileHandle &handle);
 	idx_t SeekPosition(FileHandle &handle) override;
+	bool ListFiles(const string &directory,
+		const std::function<void(const string &, bool)> &callback,
+		FileOpener *opener = nullptr);
+	optional_idx GetAvailableDiskSpace(const string &path);
 	bool Trim(FileHandle &handle, idx_t offset_bytes, idx_t length_bytes) override;
 
 	Device &GetDevice();

@@ -787,6 +787,74 @@ TEST_F(DiskInteractionTest, ListFilesOfNonDirectoryPathReturnsFalse) {
 	EXPECT_EQ(results.empty(), true);
 }
 
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWithNoAllocationReturnsCorrectSize) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// We allocate 1 LBA for global metadata and
+	// SingleFileBlockManager::CreateNewDatabase() writes 3 headers (3 LBAs)
+
+	idx_t expected_size = geo.lba_count * geo.lba_size - (4 * geo.lba_size);
+	optional_idx result = file_system->GetAvailableDiskSpace("nvmefs://");
+	ASSERT_TRUE(result.IsValid());
+	EXPECT_EQ(result.GetIndex(), expected_size);
+}
+
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWritesInTmpAndWalReturnsCorrectSize) {
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// We allocate 1 LBA for global metadata and
+	// SingleFileBlockManager::CreateNewDatabase() writes 3 headers (3 LBAs)
+
+	// Temp file with 2 LBAs and WAL with 1 LBA written
+	idx_t expected_size = (geo.lba_count * geo.lba_size) - (2 * geo.lba_size) - geo.lba_size - (4 * geo.lba_size);
+
+	// Allocate files and write to them
+	unique_ptr<FileHandle> tmp_fh = file_system->OpenFile("nvmefs:///tmp/test", flags);
+	unique_ptr<FileHandle> wal_fh = file_system->OpenFile("nvmefs://test.db.wal", flags);
+	vector<char> tmp_buf(2 * geo.lba_size);
+	vector<char> wal_buf(geo.lba_size);
+	memset(tmp_buf.data(), 1, 2*geo.lba_size);
+	memset(wal_buf.data(), 1, geo.lba_size);
+	tmp_fh->Write(tmp_buf.data(), 2*geo.lba_size);
+	wal_fh->Write(wal_buf.data(), geo.lba_size);
+
+	// Get size and evaluate
+	optional_idx result_size = file_system->GetAvailableDiskSpace("nvmefs://");
+	ASSERT_TRUE(result_size.IsValid());
+	EXPECT_EQ(result_size.GetIndex(), expected_size);
+}
+
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceTmpDirectoryWithTwoFilesReturnCorrectSize){
+	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
+	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
+
+	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
+
+	// Two temp files with 2 and 3 LBAs written to them
+	// Allocate files and write to them
+	unique_ptr<FileHandle> test1_fh = file_system->OpenFile("nvmefs:///tmp/test1", flags);
+	unique_ptr<FileHandle> test2_fh = file_system->OpenFile("nvmefs:///tmp/test2", flags);
+	vector<char> test1_buf(3*geo.lba_size);
+	vector<char> test2_buf(2*geo.lba_size);
+	memset(test1_buf.data(), 1, 3*geo.lba_size);
+	memset(test2_buf.data(), 1, 2*geo.lba_size);
+	test1_fh->Write(test1_buf.data(), 3*geo.lba_size);
+	test2_fh->Write(test2_buf.data(), 2*geo.lba_size);
+
+	// check
+	// Cheating a bit - max_temp_size is private.
+	// The temp dir size for the tests is 640 LBAs
+	idx_t expected_size = (640 * geo.lba_size) - (3 * geo.lba_size) - (2 * geo.lba_size);
+	optional_idx result_size = file_system->GetAvailableDiskSpace("nvmefs:///tmp");
+	ASSERT_TRUE(result_size.IsValid());
+	EXPECT_EQ(result_size.GetIndex(), expected_size);
+}
 
 class BlockManagerTest : public testing::Test {
 protected:

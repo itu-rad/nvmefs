@@ -79,7 +79,6 @@ NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device)
 unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags,
                                                 optional_ptr<FileOpener> opener) {
 	api_lock.lock();
-	// std::cout << "Locking Openfile\n";
 	bool internal = StringUtil::Equals(NVMEFS_GLOBAL_METADATA_PATH.data(), path.data());
 	if (!internal && !TryLoadMetadata()) {
 		if (GetMetadataType(path) != MetadataType::DATABASE) {
@@ -89,14 +88,12 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 		}
 	}
 	unique_ptr<FileHandle> handle = make_uniq<NvmeFileHandle>(*this, path, flags);
-	// std::cout << "Unlocking Openfile\n";
 	api_lock.unlock();
 	return std::move(handle);
 }
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	api_lock.lock();
-	// std::cout << "Locking Read\n";
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 
@@ -112,13 +109,11 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 	}
 
 	device->Read(buffer, *cmd_ctx);
-	// std::cout << "Unocking Read\n";
 	api_lock.unlock();
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	api_lock.lock();
-	// std::cout << "Locking Write\n";
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 
@@ -135,7 +130,6 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 
 	idx_t written_lbas = device->Write(buffer, *cmd_ctx);
 	UpdateMetadata(*cmd_ctx);
-	// std::cout << "Unlocking Write\n";
 	api_lock.unlock();
 }
 
@@ -159,7 +153,6 @@ bool NvmeFileSystem::CanHandleFile(const string &fpath) {
 
 bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener> opener) {
 	api_lock.lock();
-	// std::cout << "Locking FileExists\n";
 	if (!TryLoadMetadata()) {
 		return false;
 	}
@@ -205,14 +198,12 @@ bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener>
 		throw IOException("No such metadata type");
 		break;
 	}
-	// std::cout << "Unlocking FileExists\n";
 	api_lock.unlock();
 	return exists;
 }
 
 int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
 	api_lock.lock();
-	// std::cout << "Locking GetFileSize\n";
 	DeviceGeometry geo = device->GetDeviceGeometry();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	MetadataType type = GetMetadataType(fh.path);
@@ -249,7 +240,6 @@ bool NvmeFileSystem::OnDiskFile(FileHandle &handle) {
 
 void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 	api_lock.lock();
-	// std::cout << "Locking Truncate\n";
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 	int64_t current_size = GetFileSize(nvme_handle);
 
@@ -289,27 +279,22 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 	} else {
 		throw InvalidInputException("new_size is bigger than the current file size.");
 	}
-	// std::cout << "Unlocking Truncate\n";
 	api_lock.unlock();
 }
 
 bool NvmeFileSystem::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
 	api_lock.lock();
-	// std::cout << "Locking DirectoryExists\n";
 	// The directory exists if metadata exists
 	if (TryLoadMetadata()) {
 		api_lock.unlock();
-		// std::cout << "Unlocking DirectoryExists\n";
 		return true;
 	}
 	api_lock.unlock();
-	// std::cout << "Unlocking DirectoryExists\n";
 	return false;
 }
 
 void NvmeFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener) {
 	api_lock.lock();
-	// std::cout << "Locking RemoveDirectory\n";
 	// We only support removal of temporary directory
 	MetadataType type = GetMetadataType(directory);
 	if (type == MetadataType::TEMPORARY) {
@@ -317,7 +302,6 @@ void NvmeFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileO
 	} else {
 		throw IOException("Cannot delete unknown directory");
 	}
-	// std::cout << "Unlocking RemoveDirectory\n";
 	api_lock.unlock();
 }
 
@@ -325,11 +309,9 @@ void NvmeFileSystem::CreateDirectory(const string &directory, optional_ptr<FileO
 	// All necessary directories (i.e. tmp and main folder) is already created
 	// if metadata is present
 	api_lock.lock();
-	// std::cout << "Locking CreateDirectory\n";
 	if (!TryLoadMetadata()) {
 		throw IOException("No directories can exist when there is no metadata");
 	}
-	// std::cout << "Unlocking CreateDirectory\n";
 	api_lock.unlock();
 }
 
@@ -359,7 +341,6 @@ void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener>
 
 void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 	api_lock.lock();
-	// std::cout << "Locking Seek\n";
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 	// We only support seek to start of an LBA block
@@ -389,7 +370,6 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 	}
 
 	nvme_handle.SetFilePointer(location);
-	// std::cout << "Unlocking Seek\n";
 	api_lock.unlock();
 }
 

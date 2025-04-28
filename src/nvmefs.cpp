@@ -394,8 +394,10 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 }
 
 void NvmeFileSystem::Reset(FileHandle &handle) {
+	api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	fh.SetFilePointer(0);
+	api_lock.unlock();
 }
 
 idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
@@ -429,6 +431,7 @@ bool NvmeFileSystem::ListFiles(const string &directory,
 }
 
 optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
+	api_lock.lock();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 	const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
 	const string db_filepath = NVMEFS_PATH_PREFIX + db_filename_no_ext + ".db";
@@ -460,7 +463,7 @@ optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
 
 		remaining = (temp_max_bytes - temp_used_bytes);
 	}
-
+	api_lock.unlock();
 	return remaining;
 }
 

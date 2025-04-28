@@ -100,6 +100,8 @@ public:
 		const std::function<void(const string &, bool)> &callback,
 		FileOpener *opener = nullptr);
 	optional_idx GetAvailableDiskSpace(const string &path);
+	bool Trim(FileHandle &handle, idx_t offset_bytes, idx_t length_bytes) override;
+
 	Device &GetDevice();
 
 	string GetName() const {

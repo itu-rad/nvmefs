@@ -12,7 +12,8 @@ def test_create_database_close_and_open(device):
     con.execute(f"""CREATE OR REPLACE PERSISTENT SECRET nvmefs (
                         TYPE NVMEFS,
                         nvme_device_path '{device.device_path}',
-                        fdp_plhdls       '{7}'
+                        fdp_plhdls       '{7}',
+                        backend         'io_uring_cmd'
                     );""")
     
     con.execute("ATTACH DATABASE 'nvmefs:///test.db' AS test (READ_WRITE);")

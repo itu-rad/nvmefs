@@ -15,7 +15,7 @@ def tpch_database_connection(device):
                         TYPE NVMEFS,
                         nvme_device_path '{device.device_path}',
                         fdp_plhdls       '{7}',
-                        backend          'nvme',
+                        backend          'io_uring_cmd'
                     );""")
 
     con.execute("ATTACH DATABASE 'nvmefs:///tpch.db' AS test (READ_WRITE);")

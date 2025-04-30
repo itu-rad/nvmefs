@@ -21,10 +21,9 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
+		// Set the callback function for completed commands. No callback arguments, hence last argument equal to NULL
+		xnvme_queue_set_cb(queue, CommandCallback, &cb_args);
 	}
-
-	// Set the callback function for completed commands. No callback arguments, hence last argument equal to NULL
-	xnvme_queue_set_cb(queue, CommandCallback, &cb_args);
 
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 	geometry = LoadDeviceGeometry();

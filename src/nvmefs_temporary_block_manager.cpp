@@ -105,7 +105,8 @@ void NvmeTemporaryBlockManager::PrintBlocksBackwards(TemporaryBlock *block) {
 
 	printf("-------\n");
 	while (block != nullptr) {
-		printf("Block start lba %llu end lba %llu\n", block->GetStartLBA(), block->GetEndLBA());
+		printf("Block start lba %llu end lba %llu, is_free %d\n", block->GetStartLBA(), block->GetEndLBA(),
+		       block->IsFree());
 		block = block->previous_block;
 	}
 	printf("-------\n");
@@ -142,6 +143,7 @@ TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx
 }
 
 void NvmeTemporaryBlockManager::FreeBlock(TemporaryBlock *block) {
+
 	// Mark the block as free
 	block->is_free = true;
 
@@ -224,13 +226,16 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 		block->lba_amount += block->previous_block->lba_amount + block->next_block->lba_amount;
 
 		if (block->previous_block->previous_block != nullptr) {
+
+			unique_ptr<TemporaryBlock> old_left_block = move(block->previous_block->previous_block->next_block);
+
 			block->previous_block->previous_block->next_block =
 			    move(block->previous_block->next_block); // Move the previous block to the new merged block
 
 			block->previous_block =
 			    block->previous_block->previous_block; // Set the previous block to the new merged block
 
-			RemoveFreeBlock(block->previous_block); // Remove the previous block from the free list
+			RemoveFreeBlock(old_left_block.get()); // Remove the previous block from the free list
 		} else {
 			RemoveFreeBlock(blocks.get()); // Remove the previous block from the free list
 			blocks = move(block->previous_block->next_block);
@@ -253,13 +258,15 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 		block->lba_amount += block->previous_block->lba_amount;
 
 		if (block->previous_block->previous_block != nullptr) {
+			unique_ptr<TemporaryBlock> old_left_block = move(block->previous_block->previous_block->next_block);
+
 			block->previous_block->previous_block->next_block =
 			    move(block->previous_block->next_block); // Move the previous block to the new merged block
 
 			block->previous_block =
 			    block->previous_block->previous_block; // Set the previous block to the new merged block
 
-			RemoveFreeBlock(block->previous_block); // Remove the previous block from the free list
+			RemoveFreeBlock(old_left_block.get()); // Remove the previous block from the free list
 		} else {
 			RemoveFreeBlock(blocks.get()); // Remove the previous block from the free list
 			blocks = move(block->previous_block->next_block);

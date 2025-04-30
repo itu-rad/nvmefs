@@ -759,7 +759,8 @@ TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
 }
 
 TEST_F(DiskInteractionTest, NewlyCreatedHandleOffsetRemainZeroAfterReset) {
-	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	unique_ptr<FileHandle> fh =
+	    file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
 	NvmeFileHandle &nvme_fh = fh->Cast<NvmeFileHandle>();
 
 	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 0);
@@ -771,11 +772,12 @@ TEST_F(DiskInteractionTest, NewlyCreatedHandleOffsetRemainZeroAfterReset) {
 }
 
 TEST_F(DiskInteractionTest, HandleWithOffsetEqualsZeroWhenReset) {
-	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	unique_ptr<FileHandle> fh =
+	    file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
 	NvmeFileHandle &nvme_fh = fh->Cast<NvmeFileHandle>();
 
 	// Seek 5k bytes into file
-	file_system->Seek(nvme_fh,5000);
+	file_system->Seek(nvme_fh, 5000);
 	EXPECT_EQ(file_system->SeekPosition(nvme_fh), 5000);
 
 	file_system->Reset(nvme_fh);
@@ -789,18 +791,21 @@ TEST_F(DiskInteractionTest, ListFilesOfPrefixDirectoryYieldsCorrectFilesAndDirSt
 	const string wal_filename = "test.db.wal";
 	const string tmp_dir_filepath = "/tmp";
 
-	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	unique_ptr<FileHandle> fh =
+	    file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
 
 	vector<std::tuple<string, bool>> results;
 
-	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+	std::function<void(const string &, bool)> lister = [&results](const string &directory, bool is_dir) {
 		results.push_back(std::make_tuple(directory, is_dir));
 	};
 
 	bool dir = file_system->ListFiles("nvmefs://", lister);
 
 	EXPECT_EQ(dir, true);
-	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple(db_filename, false), std::make_tuple(tmp_dir_filepath, true), std::make_tuple(wal_filename, false)));
+	EXPECT_THAT(results,
+	            UnorderedElementsAre(std::make_tuple(db_filename, false), std::make_tuple(tmp_dir_filepath, true),
+	                                 std::make_tuple(wal_filename, false)));
 }
 
 TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectListOfFiles) {
@@ -814,8 +819,8 @@ TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectLi
 	unique_ptr<FileHandle> tmp_fh_2 = file_system->OpenFile("nvmefs:///tmp/file2", flags);
 
 	vector<char> buf_h {'H', 'E', 'L', 'L', 'O'};
-	tmp_fh_1->Write(buf_h.data(), buf_h.size(),0);
-	tmp_fh_2->Write(buf_h.data(), buf_h.size(),0);
+	tmp_fh_1->Write(buf_h.data(), buf_h.size(), 0);
+	tmp_fh_2->Write(buf_h.data(), buf_h.size(), 0);
 
 	vector<char> res1_h(buf_h.size());
 	vector<char> res2_h(buf_h.size());
@@ -827,7 +832,7 @@ TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectLi
 
 	vector<std::tuple<string, bool>> results;
 
-	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+	std::function<void(const string &, bool)> lister = [&results](const string &directory, bool is_dir) {
 		results.push_back(std::make_tuple(directory, is_dir));
 	};
 
@@ -837,7 +842,7 @@ TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectLi
 	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple("file1", false), std::make_tuple("file2", false)));
 }
 
-TEST_F(DiskInteractionTest, ListFilesOfEmptyTemporaryDirectoryReturnsNothing){
+TEST_F(DiskInteractionTest, ListFilesOfEmptyTemporaryDirectoryReturnsNothing) {
 	const string tmp_dir_filepath = "nvmefs:///tmp";
 
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
@@ -845,7 +850,7 @@ TEST_F(DiskInteractionTest, ListFilesOfEmptyTemporaryDirectoryReturnsNothing){
 
 	vector<std::tuple<string, bool>> results;
 
-	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+	std::function<void(const string &, bool)> lister = [&results](const string &directory, bool is_dir) {
 		results.push_back(std::make_tuple(directory, is_dir));
 	};
 
@@ -861,7 +866,7 @@ TEST_F(DiskInteractionTest, ListFilesOfNonDirectoryPathReturnsFalse) {
 
 	vector<std::tuple<string, bool>> results;
 
-	std::function<void(const string &, bool)> lister = [&results] (const string &directory, bool is_dir) {
+	std::function<void(const string &, bool)> lister = [&results](const string &directory, bool is_dir) {
 		results.push_back(std::make_tuple(directory, is_dir));
 	};
 
@@ -903,9 +908,9 @@ TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWritesInTmpAndWalRetu
 	unique_ptr<FileHandle> wal_fh = file_system->OpenFile("nvmefs://test.db.wal", flags);
 	vector<char> tmp_buf(2 * geo.lba_size);
 	vector<char> wal_buf(geo.lba_size);
-	memset(tmp_buf.data(), 1, 2*geo.lba_size);
+	memset(tmp_buf.data(), 1, 2 * geo.lba_size);
 	memset(wal_buf.data(), 1, geo.lba_size);
-	tmp_fh->Write(tmp_buf.data(), 2*geo.lba_size);
+	tmp_fh->Write(tmp_buf.data(), 2 * geo.lba_size);
 	wal_fh->Write(wal_buf.data(), geo.lba_size);
 
 	// Get size and evaluate
@@ -914,7 +919,7 @@ TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWritesInTmpAndWalRetu
 	EXPECT_EQ(result_size.GetIndex(), expected_size);
 }
 
-TEST_F(DiskInteractionTest, GetAvailableDiskSpaceTmpDirectoryWithTwoFilesReturnCorrectSize){
+TEST_F(DiskInteractionTest, GetAvailableDiskSpaceTmpDirectoryWithTwoFilesReturnCorrectSize) {
 	FileOpenFlags flags = FileOpenFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_WRITE;
 	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
 
@@ -924,12 +929,12 @@ TEST_F(DiskInteractionTest, GetAvailableDiskSpaceTmpDirectoryWithTwoFilesReturnC
 	// Allocate files and write to them
 	unique_ptr<FileHandle> test1_fh = file_system->OpenFile("nvmefs:///tmp/test1", flags);
 	unique_ptr<FileHandle> test2_fh = file_system->OpenFile("nvmefs:///tmp/test2", flags);
-	vector<char> test1_buf(3*geo.lba_size);
-	vector<char> test2_buf(2*geo.lba_size);
-	memset(test1_buf.data(), 1, 3*geo.lba_size);
-	memset(test2_buf.data(), 1, 2*geo.lba_size);
-	test1_fh->Write(test1_buf.data(), 3*geo.lba_size);
-	test2_fh->Write(test2_buf.data(), 2*geo.lba_size);
+	vector<char> test1_buf(3 * geo.lba_size);
+	vector<char> test2_buf(2 * geo.lba_size);
+	memset(test1_buf.data(), 1, 3 * geo.lba_size);
+	memset(test2_buf.data(), 1, 2 * geo.lba_size);
+	test1_fh->Write(test1_buf.data(), 3 * geo.lba_size);
+	test2_fh->Write(test2_buf.data(), 2 * geo.lba_size);
 
 	// check
 	// Cheating a bit - max_temp_size is private.
@@ -1108,6 +1113,36 @@ TEST_F(BlockManagerTest, FreelistRemoveOneAtATime) {
 	EXPECT_EQ(block5->GetEndLBA(), 15);
 	EXPECT_EQ(block5->GetSizeInBytes(), 8 * 4096);
 	EXPECT_EQ(block5->IsFree(), false);
+}
+
+TEST_F(BlockManagerTest, FreelistCoalesceLeftAndRightInTheMiddle) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block1 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block4 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block5 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block6 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block7 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block8 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block9 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block10 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block50 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block4->GetStartLBA() == block3->GetEndLBA() + 1);
+
+	// Check that the block is allocated correctly
+	block_manager->FreeBlock(block5);
+	block_manager->FreeBlock(block7); // Should coalesce with the original large block
+	block_manager->FreeBlock(block6);
+
+	TemporaryBlock *block = block_manager->AllocateBlock(16);
+
+	EXPECT_EQ(block->GetStartLBA(), 32);
+	EXPECT_EQ(block->GetEndLBA(), 47);
+	EXPECT_EQ(block->GetSizeInBytes(), 16 * 4096);
+	EXPECT_EQ(block->IsFree(), false);
 }
 
 } // namespace duckdb

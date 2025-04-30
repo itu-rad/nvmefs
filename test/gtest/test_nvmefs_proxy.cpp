@@ -1143,6 +1143,48 @@ TEST_F(BlockManagerTest, FreelistCoalesceLeftAndRightInTheMiddle) {
 	EXPECT_EQ(block->GetEndLBA(), 47);
 	EXPECT_EQ(block->GetSizeInBytes(), 16 * 4096);
 	EXPECT_EQ(block->IsFree(), false);
+
+	TemporaryBlock *block11 = block_manager->AllocateBlock(8);
+	EXPECT_EQ(block11->GetStartLBA(), 48);
+	EXPECT_EQ(block11->GetEndLBA(), 55);
+	EXPECT_EQ(block11->GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block11->IsFree(), false);
+}
+
+TEST_F(BlockManagerTest, FreelistCoalesceLeftInTheMiddleOfTheList) {
+
+	// Allocate a block of size 8
+	TemporaryBlock *block1 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block2 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block3 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block4 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block5 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block6 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block7 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block8 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block9 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block10 = block_manager->AllocateBlock(8);
+	TemporaryBlock *block50 = block_manager->AllocateBlock(8);
+
+	ASSERT_TRUE(block4->GetStartLBA() == block3->GetEndLBA() + 1);
+
+	// Check that the block is allocated correctly
+	block_manager->FreeBlock(block5);
+	block_manager->FreeBlock(block6);
+	block_manager->FreeBlock(block7);
+
+	TemporaryBlock *block = block_manager->AllocateBlock(16);
+
+	EXPECT_EQ(block->GetStartLBA(), 32);
+	EXPECT_EQ(block->GetEndLBA(), 47);
+	EXPECT_EQ(block->GetSizeInBytes(), 16 * 4096);
+	EXPECT_EQ(block->IsFree(), false);
+
+	TemporaryBlock *block11 = block_manager->AllocateBlock(8);
+	EXPECT_EQ(block11->GetStartLBA(), 48);
+	EXPECT_EQ(block11->GetEndLBA(), 55);
+	EXPECT_EQ(block11->GetSizeInBytes(), 8 * 4096);
+	EXPECT_EQ(block11->IsFree(), false);
 }
 
 } // namespace duckdb

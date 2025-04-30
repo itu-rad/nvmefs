@@ -143,19 +143,6 @@ TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx
 }
 
 void NvmeTemporaryBlockManager::FreeBlock(TemporaryBlock *block) {
-	// printf("===== before free \n");
-	// printf("Freeing block %llu end %llu\n", block->GetStartLBA(), block->GetSizeInBytes() / 4096);
-	// for (uint8_t i = 0; i < 8; i++) {
-	// 	printf("Free list %d: \n", i);
-	// 	TemporaryBlock *nblock = blocks_free[i];
-
-	// 	while (nblock != nullptr) {
-	// 		printf("Block start lba %llu size %llu, is_free: %d\n", nblock->GetStartLBA(),
-	// 		       nblock->GetSizeInBytes() / 4096, nblock->IsFree());
-	// 		nblock = nblock->next_free_block;
-	// 	}
-	// }
-	// printf("=========\n");
 
 	// Mark the block as free
 	block->is_free = true;
@@ -165,18 +152,6 @@ void NvmeTemporaryBlockManager::FreeBlock(TemporaryBlock *block) {
 
 	// Add the block to the free list
 	PushFreeBlock(block);
-	// printf("===== after free \n");
-	// for (uint8_t i = 0; i < 8; i++) {
-	// 	printf("Free list %d: \n", i);
-	// 	TemporaryBlock *nblock = blocks_free[i];
-
-	// 	while (nblock != nullptr) {
-	// 		printf("Block start lba %llu size %llu, is_free: %d\n", nblock->GetStartLBA(),
-	// 		       nblock->GetSizeInBytes() / 4096, nblock->IsFree());
-	// 		nblock = nblock->next_free_block;
-	// 	}
-	// }
-	// printf("=========\n");
 }
 
 void NvmeTemporaryBlockManager::PushFreeBlock(TemporaryBlock *block) {
@@ -223,10 +198,7 @@ TemporaryBlock *NvmeTemporaryBlockManager::PopFreeBlock(uint8_t free_list_index)
 
 void NvmeTemporaryBlockManager::RemoveFreeBlock(TemporaryBlock *block) {
 
-	// printf("Removing free block %llu size %llu\n", block->GetStartLBA(), block->GetSizeInBytes() / 4096);
 	if (block->next_free_block != nullptr) {
-		// printf("Next free block %llu size %llu\n", block->next_free_block->GetStartLBA(),
-		//        block->next_free_block->GetSizeInBytes() / 4096);
 		block->next_free_block->previous_free_block = block->previous_free_block;
 	}
 
@@ -237,8 +209,6 @@ void NvmeTemporaryBlockManager::RemoveFreeBlock(TemporaryBlock *block) {
 		if (blocks_free[free_list_index] != nullptr)
 			blocks_free[free_list_index]->previous_free_block = nullptr; // Set the previous block to null
 	} else {
-		// printf("Previous free block %llu size %llu\n", block->previous_free_block->GetStartLBA(),
-		//    block->previous_free_block->GetSizeInBytes() / 4096);
 		// Set the previous free block to the next free block
 		block->previous_free_block->next_free_block = block->next_free_block;
 	}
@@ -251,13 +221,11 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 	// Check if the previous block is free
 	if ((block->previous_block != nullptr && block->previous_block->IsFree()) &&
 	    (block->next_block != nullptr && block->next_block->IsFree())) {
-		// printf("Merging left and right\n");
 
 		block->start_lba = block->previous_block->start_lba; // Set the start lba to the previous blocks start lba
 		block->lba_amount += block->previous_block->lba_amount + block->next_block->lba_amount;
 
 		if (block->previous_block->previous_block != nullptr) {
-			// printf("Merging both sides, previous block is not null\n");
 
 			unique_ptr<TemporaryBlock> old_left_block = move(block->previous_block->previous_block->next_block);
 
@@ -269,7 +237,6 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 
 			RemoveFreeBlock(old_left_block.get()); // Remove the previous block from the free list
 		} else {
-			// printf("Merging both sides, previous block is null\n");
 			RemoveFreeBlock(blocks.get()); // Remove the previous block from the free list
 			blocks = move(block->previous_block->next_block);
 			blocks->previous_block = nullptr; // Set the previous block to null
@@ -289,14 +256,9 @@ void NvmeTemporaryBlockManager::CoalesceFreeBlocks(TemporaryBlock *block) {
 	} else if (block->previous_block != nullptr && block->previous_block->IsFree()) {
 		block->start_lba = block->previous_block->start_lba; // Set the start lba to the previous blocks start lba
 		block->lba_amount += block->previous_block->lba_amount;
-		// printf("Merging left\n");
 
 		if (block->previous_block->previous_block != nullptr) {
-			// printf("Merging left, previous block is not null\n");
 			unique_ptr<TemporaryBlock> old_left_block = move(block->previous_block->previous_block->next_block);
-			// printf("Block start lba %llu end %llu\n", block->GetStartLBA(), block->GetEndLBA());
-			// printf("Old left block start lba %llu end %llu\n", old_left_block->GetStartLBA(),
-			//    old_left_block->GetEndLBA());
 
 			block->previous_block->previous_block->next_block =
 			    move(block->previous_block->next_block); // Move the previous block to the new merged block

@@ -22,7 +22,6 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
 		// Set the callback function for completed commands. No callback arguments, hence last argument equal to NULL
-		xnvme_queue_set_cb(queue, CommandCallback, &cb_args);
 	}
 
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
@@ -187,7 +186,7 @@ void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
 
 void NvmeDevice::CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args) {
 	// Cast callback args into defined callback struct
-	struct CallbackArgs *args = (CallbackArgs *) cb_args;
+	std::promise<void> *notifier = (std::promise<void> *) cb_args;
 
 	// Check status
 	if (xnvme_cmd_ctx_cpl_status(ctx)) {
@@ -198,9 +197,7 @@ void NvmeDevice::CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args) {
 	// Put command context back to queue, and notify the future
 	queue_lock.lock();
 	xnvme_queue_put_cmd_ctx(ctx->async.queue, ctx);
-	args->map_lock.lock();
-	args->notifier.at(ctx).set_value();
-	args->map_lock.unlock();
+	notifier->set_value();
 	queue_lock.unlock();
 }
 
@@ -222,9 +219,7 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();
 
-	cb_args.map_lock.lock();
-	cb_args.notifier[xnvme_ctx] = std::move(cb_notify);
-	cb_args.map_lock.unlock();
+	xnvme_cmd_ctx_set_cb(xnvme_ctx, CommandCallback, &cb_notify);
 
 	std::future_status status;
 	std::chrono::milliseconds interval = std::chrono::milliseconds(25);
@@ -276,9 +271,7 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();
 
-	cb_args.map_lock.lock();
-	cb_args.notifier[xnvme_ctx] = std::move(cb_notify);
-	cb_args.map_lock.unlock();
+	xnvme_cmd_ctx_set_cb(xnvme_ctx, CommandCallback, &cb_notify);
 
 	std::future_status status;
 	std::chrono::milliseconds interval = std::chrono::milliseconds(25);

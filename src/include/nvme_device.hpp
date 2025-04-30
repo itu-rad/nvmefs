@@ -14,11 +14,6 @@ typedef void *nvme_buf_ptr;
 static constexpr idx_t XNVME_QUEUE_DEPTH = 1 << 4;
 static constexpr std::chrono::milliseconds POKE_MAX_BACKOFF_TIME = std::chrono::milliseconds(200);
 
-struct CallbackArgs {
-	std::unordered_map<struct xnvme_cmd_ctx*, std::promise<void>> notifier;
-	std::mutex map_lock;
-};
-
 struct NvmeDeviceGeometry : public DeviceGeometry {};
 struct NvmeCmdContext : public CmdContext {
 	string filepath;
@@ -109,7 +104,6 @@ private:
 	const string backend;
 	const bool async;
 	static std::recursive_mutex queue_lock;
-	CallbackArgs cb_args;
 };
 
 } // namespace duckdb

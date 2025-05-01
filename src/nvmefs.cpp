@@ -527,6 +527,10 @@ void NvmeFileSystem::WriteMetadata(GlobalMetadata &global) {
 	idx_t nr_bytes_global = sizeof(GlobalMetadata);
 	idx_t bytes_to_write = nr_bytes_magic + nr_bytes_global;
 
+	// update locations
+	global.db_location = db_location.load();
+	global.wal_location = wal_location.load();
+
 	data_ptr_t buffer = allocator.AllocateData(bytes_to_write);
 	memcpy(buffer, NVMEFS_MAGIC_BYTES, nr_bytes_magic);
 	memcpy(buffer + nr_bytes_magic, &global, nr_bytes_global);

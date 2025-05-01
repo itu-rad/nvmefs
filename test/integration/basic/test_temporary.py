@@ -2,6 +2,7 @@ import pytest
 import duckdb
 from decimal import Decimal
 from datetime import datetime
+import time
 
 @pytest.fixture(scope="module")
 def tpch_database_connection(device):
@@ -41,8 +42,12 @@ def test_tpch_1_spill(tpch_database_connection):
     expected_query_results = [(columns[0], columns[1], Decimal(columns[2]), Decimal(columns[3]), Decimal(columns[4]), Decimal(columns[5]), float(columns[6]), float(columns[7]), float(columns[8]), int(columns[9])) for columns in 
                                [line.split("|") for line in result_rows]]
 
-
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -60,7 +65,12 @@ def test_tpch_2_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -77,8 +87,12 @@ def test_tpch_3_spill(tpch_database_connection):
     expected_query_results = [(int(columns[0]), Decimal(columns[1]), datetime.strptime(columns[2], '%Y-%m-%d').date(), int(columns[3])) for columns in 
                                [line.split("|") for line in result_rows]]
 
-
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -96,7 +110,12 @@ def test_tpch_4_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -114,8 +133,12 @@ def test_tpch_5_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
-
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
     assert query_result == expected_query_results
 
 def test_tpch_6_spill(tpch_database_connection):
@@ -132,7 +155,12 @@ def test_tpch_6_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -150,7 +178,12 @@ def test_tpch_7_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -168,7 +201,12 @@ def test_tpch_8_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -186,7 +224,12 @@ def test_tpch_9_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -204,7 +247,12 @@ def test_tpch_10_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -222,7 +270,12 @@ def test_tpch_11_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -240,7 +293,12 @@ def test_tpch_12_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -258,7 +316,12 @@ def test_tpch_13_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -276,7 +339,12 @@ def test_tpch_14_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -294,7 +362,12 @@ def test_tpch_15_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -312,7 +385,12 @@ def test_tpch_16_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -330,7 +408,12 @@ def test_tpch_17_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -348,7 +431,12 @@ def test_tpch_18_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -366,7 +454,12 @@ def test_tpch_19_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -384,7 +477,12 @@ def test_tpch_20_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results
 
@@ -402,6 +500,11 @@ def test_tpch_21_spill(tpch_database_connection):
                                [line.split("|") for line in result_rows]]
 
 
+    start = time.perf_counter()
     query_result = connection.execute(f"PRAGMA tpch({query});").fetchall()
+    end = time.perf_counter()
+    query_elapsed = (end - start) * 1000
+    
+    print(f"Query {query}: {query_elapsed} ms")
 
     assert query_result == expected_query_results

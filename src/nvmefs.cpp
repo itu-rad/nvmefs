@@ -549,7 +549,7 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 	switch (type) {
 	case MetadataType::WAL:
 		if (ctx.start_lba >= wal_location.load()) {
-			wal_location.store(ctx.start_lba + ctx.nr_lbas);
+			wal_location.fetch_add(ctx.nr_lbas);
 		}
 		break;
 	case MetadataType::TEMPORARY:
@@ -559,7 +559,7 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 		break;
 	case MetadataType::DATABASE:
 		if (ctx.start_lba >= db_location.load()) {
-			db_location.store(ctx.start_lba + ctx.nr_lbas);
+			db_location.fetch_add(ctx.nr_lbas);
 		}
 		break;
 	default:
@@ -588,11 +588,7 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 
 	switch (type) {
 	case MetadataType::WAL:
-		if (lba_location < wal_location.load()) {
-			lba = metadata->wal_start + lba_location;
-		} else {
-			lba = wal_location.load();
-		}
+		lba = metadata->wal_start + lba_location;
 		break;
 	case MetadataType::TEMPORARY: {
 		temp_lock.lock();

@@ -68,12 +68,12 @@ std::recursive_mutex NvmeFileSystem::temp_lock;
 NvmeFileSystem::NvmeFileSystem(NvmeConfig config)
     : allocator(Allocator::DefaultAllocator()),
       device(make_uniq<NvmeDevice>(config.device_path, config.plhdls, config.backend, config.async)),
-      max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size) {
+      max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size), db_location(0), wal_location(0) {
 }
 
 NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device)
     : allocator(Allocator::DefaultAllocator()), device(std::move(device)), max_temp_size(config.max_temp_size),
-      max_wal_size(config.max_wal_size) {
+      max_wal_size(config.max_wal_size), db_location(0), wal_location(0) {
 }
 
 NvmeFileSystem::~NvmeFileSystem() {
@@ -491,6 +491,9 @@ void NvmeFileSystem::InitializeMetadata(const string &filename) {
 	temp_block_manager = make_uniq<NvmeTemporaryBlockManager>(temp_start, geo.lba_count - 1);
 
 	WriteMetadata(*global);
+
+	db_location.store(0);
+	wal_location.store(0);
 
 	metadata = std::move(global);
 }

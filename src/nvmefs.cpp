@@ -93,6 +93,7 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 }
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+	auto start_time = std::chrono::high_resolution_clock::now();
 	api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
@@ -110,9 +111,16 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 
 	device->Read(buffer, *cmd_ctx);
 	api_lock.unlock();
+
+	auto end_time = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+
+	// Print the duration
+	std::cout << "Read took " << duration.count() << " microseconds." << std::endl;
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+	auto start_time = std::chrono::high_resolution_clock::now();
 	api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
@@ -131,6 +139,10 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 	idx_t written_lbas = device->Write(buffer, *cmd_ctx);
 	UpdateMetadata(*cmd_ctx);
 	api_lock.unlock();
+	auto end_time = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+	// Print the duration
+	std::cout << "Write took " << duration.count() << " microseconds." << std::endl;
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
@@ -381,33 +393,32 @@ idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 	return handle.Cast<NvmeFileHandle>().GetFilePointer();
 }
 
-bool NvmeFileSystem::ListFiles(const string &directory,
-	const std::function<void(const string &, bool)> &callback,
-	FileOpener *opener) {
-		api_lock.lock();
-		bool dir = false;
-		if (StringUtil::Equals(directory.data(), NVMEFS_PATH_PREFIX.data())) {
-			const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
-			const string db_filename_with_ext = db_filename_no_ext + ".db";
-			const string db_wal = db_filename_with_ext + ".wal";
-			const string db_tmp = "/tmp";
+bool NvmeFileSystem::ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
+                               FileOpener *opener) {
+	api_lock.lock();
+	bool dir = false;
+	if (StringUtil::Equals(directory.data(), NVMEFS_PATH_PREFIX.data())) {
+		const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
+		const string db_filename_with_ext = db_filename_no_ext + ".db";
+		const string db_wal = db_filename_with_ext + ".wal";
+		const string db_tmp = "/tmp";
 
-			callback(db_filename_with_ext, false);
-			callback(db_tmp, true);
-			callback(db_wal, false);
+		callback(db_filename_with_ext, false);
+		callback(db_tmp, true);
+		callback(db_wal, false);
 
-			dir = true;
-		} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
-			for(const auto& kv : file_to_temp_meta) {
-				callback(StringUtil::GetFileName(kv.first), false);
-			}
-			dir = true;
+		dir = true;
+	} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
+		for (const auto &kv : file_to_temp_meta) {
+			callback(StringUtil::GetFileName(kv.first), false);
 		}
-		api_lock.unlock();
-		return dir;
+		dir = true;
+	}
+	api_lock.unlock();
+	return dir;
 }
 
-optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
+optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path) {
 	api_lock.lock();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 	const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
@@ -416,25 +427,26 @@ optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
 
 	optional_idx remaining;
 
-	if (StringUtil::Equals(path.data(), NVMEFS_PATH_PREFIX.data())){
+	if (StringUtil::Equals(path.data(), NVMEFS_PATH_PREFIX.data())) {
 		idx_t db_max_bytes = (metadata->database.end - metadata->database.start) * geo.lba_size;
 		idx_t wal_max_bytes = (metadata->write_ahead_log.end - metadata->write_ahead_log.start) * geo.lba_size;
 		idx_t temp_max_bytes = (metadata->temporary.end - metadata->temporary.start) * geo.lba_size;
 
 		idx_t db_used_bytes = (metadata->database.location - metadata->database.start) * geo.lba_size;
 		idx_t wal_used_bytes = (metadata->write_ahead_log.location - metadata->write_ahead_log.start) * geo.lba_size;
-		idx_t temp_used_bytes{};
+		idx_t temp_used_bytes {};
 
-		for (const auto& kv : file_to_temp_meta) {
+		for (const auto &kv : file_to_temp_meta) {
 			temp_used_bytes += kv.second.block_size * kv.second.block_map.size();
 		}
 
-		remaining = (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + (temp_max_bytes - temp_used_bytes);
+		remaining =
+		    (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + (temp_max_bytes - temp_used_bytes);
 	} else if (StringUtil::Equals(path.data(), NVMEFS_TMP_DIR_PATH.data())) {
 		idx_t temp_max_bytes = (metadata->temporary.end - metadata->temporary.start) * geo.lba_size;
-		idx_t temp_used_bytes{};
+		idx_t temp_used_bytes {};
 
-		for (const auto& kv : file_to_temp_meta) {
+		for (const auto &kv : file_to_temp_meta) {
 			temp_used_bytes += kv.second.block_size * kv.second.block_map.size();
 		}
 
@@ -596,6 +608,7 @@ MetadataType NvmeFileSystem::GetMetadataType(const string &filename) {
 }
 
 idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t location, idx_t nr_lbas) {
+	auto start_time = std::chrono::high_resolution_clock::now();
 	idx_t lba {};
 	MetadataType type = GetMetadataType(filename);
 	DeviceGeometry geo = device->GetDeviceGeometry();
@@ -642,6 +655,11 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 		throw InvalidInputException("No such metadata type");
 		break;
 	}
+
+	auto end_time = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+	// Print the duration
+	std::cout << "GetLBA took " << duration.count() << " microseconds." << std::endl;
 
 	return lba;
 }

@@ -7,7 +7,7 @@ from datetime import datetime
 def tpch_database_connection(device):
     # Setup
 
-    con = duckdb.connect(config={"allow_unsigned_extensions": "true", "memory_limit": "50MB", "threads": 1})
+    con = duckdb.connect(config={"allow_unsigned_extensions": "true", "memory_limit": "75MB", "threads": 1})
     con.load_extension("nvmefs")
     con.load_extension("tpch")
 

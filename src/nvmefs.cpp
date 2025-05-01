@@ -494,8 +494,8 @@ void NvmeFileSystem::InitializeMetadata(const string &filename) {
 
 	WriteMetadata(*global);
 
-	db_location.store(0);
-	wal_location.store(0);
+	db_location.store(1);
+	wal_location.store(wal_start);
 
 	metadata = std::move(global);
 }

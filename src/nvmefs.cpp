@@ -76,6 +76,10 @@ NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device)
       max_wal_size(config.max_wal_size) {
 }
 
+NvmeFileSystem::~NvmeFileSystem() {
+	WriteMetadata(*metadata);
+}
+
 unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags,
                                                 optional_ptr<FileOpener> opener) {
 	bool internal = StringUtil::Equals(NVMEFS_GLOBAL_METADATA_PATH.data(), path.data());
@@ -220,6 +224,7 @@ int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
 }
 
 void NvmeFileSystem::FileSync(FileHandle &handle) {
+	WriteMetadata(*metadata);
 	// No need for sync. All writes are directly to disk.
 }
 

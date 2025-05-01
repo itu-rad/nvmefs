@@ -72,7 +72,7 @@ class NvmeFileSystem : public FileSystem {
 public:
 	NvmeFileSystem(NvmeConfig config);
 	NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device);
-	~NvmeFileSystem() = default;
+	~NvmeFileSystem();
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
 	                                optional_ptr<FileOpener> opener = nullptr) override;

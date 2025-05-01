@@ -457,6 +457,8 @@ bool NvmeFileSystem::TryLoadMetadata() {
 	unique_ptr<GlobalMetadata> global = ReadMetadata();
 	if (global) {
 		metadata = std::move(global);
+		db_location.store(metadata->db_location);
+		wal_location.store(metadata->wal_location);
 		return true;
 	}
 

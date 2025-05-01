@@ -63,7 +63,7 @@ idx_t NvmeFileHandle::GetFilePointer() {
 
 ////////////////////////////////////////
 
-std::recursive_mutex NvmeFileSystem::api_lock;
+// std::recursive_mutex NvmeFileSystem::api_lock;
 
 NvmeFileSystem::NvmeFileSystem(NvmeConfig config)
     : allocator(Allocator::DefaultAllocator()),
@@ -78,7 +78,7 @@ NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device)
 
 unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags,
                                                 optional_ptr<FileOpener> opener) {
-	api_lock.lock();
+	// api_lock.lock();
 	bool internal = StringUtil::Equals(NVMEFS_GLOBAL_METADATA_PATH.data(), path.data());
 	if (!internal && !TryLoadMetadata()) {
 		if (GetMetadataType(path) != MetadataType::DATABASE) {
@@ -88,13 +88,13 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 		}
 	}
 	unique_ptr<FileHandle> handle = make_uniq<NvmeFileHandle>(*this, path, flags);
-	api_lock.unlock();
+	// api_lock.unlock();
 	return std::move(handle);
 }
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	auto start_time = std::chrono::high_resolution_clock::now();
-	api_lock.lock();
+	// api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 
@@ -110,7 +110,7 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 	}
 
 	device->Read(buffer, *cmd_ctx);
-	api_lock.unlock();
+	// api_lock.unlock();
 
 	auto end_time = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -121,7 +121,7 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	auto start_time = std::chrono::high_resolution_clock::now();
-	api_lock.lock();
+	// api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 
@@ -138,7 +138,7 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 
 	idx_t written_lbas = device->Write(buffer, *cmd_ctx);
 	UpdateMetadata(*cmd_ctx);
-	api_lock.unlock();
+	// api_lock.unlock();
 	auto end_time = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 	// Print the duration
@@ -146,16 +146,16 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	api_lock.lock();
+	// api_lock.lock();
 	Read(handle, buffer, nr_bytes, 0);
-	api_lock.unlock();
+	// api_lock.unlock();
 	return nr_bytes;
 }
 
 int64_t NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes) {
-	api_lock.lock();
+	// api_lock.lock();
 	Write(handle, buffer, nr_bytes, 0);
-	api_lock.unlock();
+	// api_lock.unlock();
 	return nr_bytes;
 }
 
@@ -164,7 +164,7 @@ bool NvmeFileSystem::CanHandleFile(const string &fpath) {
 }
 
 bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener> opener) {
-	api_lock.lock();
+	// api_lock.lock();
 	if (!TryLoadMetadata()) {
 		return false;
 	}
@@ -210,12 +210,12 @@ bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener>
 		throw IOException("No such metadata type");
 		break;
 	}
-	api_lock.unlock();
+	// api_lock.unlock();
 	return exists;
 }
 
 int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
-	api_lock.lock();
+	// api_lock.lock();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	MetadataType type = GetMetadataType(fh.path);
@@ -237,7 +237,7 @@ int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
 		throw InvalidInputException("Unknown metadata type!");
 		break;
 	}
-	api_lock.unlock();
+	// api_lock.unlock();
 	return nr_lbas * geo.lba_size;
 }
 
@@ -251,7 +251,7 @@ bool NvmeFileSystem::OnDiskFile(FileHandle &handle) {
 }
 
 void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
-	api_lock.lock();
+	// api_lock.lock();
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 	int64_t current_size = GetFileSize(nvme_handle);
 
@@ -288,22 +288,22 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 	} else {
 		throw InvalidInputException("new_size is bigger than the current file size.");
 	}
-	api_lock.unlock();
+	// api_lock.unlock();
 }
 
 bool NvmeFileSystem::DirectoryExists(const string &directory, optional_ptr<FileOpener> opener) {
-	api_lock.lock();
+	// api_lock.lock();
 	// The directory exists if metadata exists
 	if (TryLoadMetadata()) {
-		api_lock.unlock();
+		// api_lock.unlock();
 		return true;
 	}
-	api_lock.unlock();
+	// api_lock.unlock();
 	return false;
 }
 
 void NvmeFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileOpener> opener) {
-	api_lock.lock();
+	// api_lock.lock();
 	// We only support removal of temporary directory
 	MetadataType type = GetMetadataType(directory);
 	if (type == MetadataType::TEMPORARY) {
@@ -311,21 +311,21 @@ void NvmeFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileO
 	} else {
 		throw IOException("Cannot delete unknown directory");
 	}
-	api_lock.unlock();
+	// api_lock.unlock();
 }
 
 void NvmeFileSystem::CreateDirectory(const string &directory, optional_ptr<FileOpener> opener) {
 	// All necessary directories (i.e. tmp and main folder) is already created
 	// if metadata is present
-	api_lock.lock();
+	// api_lock.lock();
 	if (!TryLoadMetadata()) {
 		throw IOException("No directories can exist when there is no metadata");
 	}
-	api_lock.unlock();
+	// api_lock.unlock();
 }
 
 void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener> opener) {
-	api_lock.lock();
+	// api_lock.lock();
 	MetadataType type = GetMetadataType(filename);
 
 	switch (type) {
@@ -345,11 +345,11 @@ void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener>
 		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
 		break;
 	}
-	api_lock.unlock();
+	// api_lock.unlock();
 }
 
 void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
-	api_lock.lock();
+	// api_lock.lock();
 	NvmeFileHandle &nvme_handle = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 	// We only support seek to start of an LBA block
@@ -379,14 +379,14 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 	}
 
 	nvme_handle.SetFilePointer(location);
-	api_lock.unlock();
+	// api_lock.unlock();
 }
 
 void NvmeFileSystem::Reset(FileHandle &handle) {
-	api_lock.lock();
+	// api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	fh.SetFilePointer(0);
-	api_lock.unlock();
+	// api_lock.unlock();
 }
 
 idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
@@ -395,7 +395,7 @@ idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 
 bool NvmeFileSystem::ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
                                FileOpener *opener) {
-	api_lock.lock();
+	// api_lock.lock();
 	bool dir = false;
 	if (StringUtil::Equals(directory.data(), NVMEFS_PATH_PREFIX.data())) {
 		const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
@@ -414,12 +414,12 @@ bool NvmeFileSystem::ListFiles(const string &directory, const std::function<void
 		}
 		dir = true;
 	}
-	api_lock.unlock();
+	// api_lock.unlock();
 	return dir;
 }
 
 optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path) {
-	api_lock.lock();
+	// api_lock.lock();
 	DeviceGeometry geo = device->GetDeviceGeometry();
 	const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
 	const string db_filepath = NVMEFS_PATH_PREFIX + db_filename_no_ext + ".db";
@@ -452,7 +452,7 @@ optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path) {
 
 		remaining = (temp_max_bytes - temp_used_bytes);
 	}
-	api_lock.unlock();
+	// api_lock.unlock();
 	return remaining;
 }
 

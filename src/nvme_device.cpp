@@ -239,16 +239,10 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	}
 
 	do {
+		// queue_lock.lock();
+		xnvme_queue_poke(queue, 0);
 		status = fut.wait_for(interval);
-		if (status != std::future_status::ready) {
-
-			if (interval < POKE_MAX_BACKOFF_TIME) {
-				interval *= 2;
-			}
-			// queue_lock.lock();
-			xnvme_queue_poke(queue, 0);
 			// queue_lock.unlock();
-		}
 	} while (status != std::future_status::ready);
 
 	memcpy(buffer, dev_buffer + ctx.offset, ctx.nr_bytes);
@@ -298,16 +292,10 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	}
 
 	do {
+		// queue_lock.lock();
+		xnvme_queue_poke(queue, 0);
 		status = fut.wait_for(interval);
-		if (status != std::future_status::ready) {
-
-			if (interval < POKE_MAX_BACKOFF_TIME) {
-				interval *= 2;
-			}
-			// queue_lock.lock();
-			xnvme_queue_poke(queue, 0);
 			// queue_lock.unlock();
-		}
 	} while (status != std::future_status::ready);
 
 	FreeDeviceBuffer(dev_buffer);

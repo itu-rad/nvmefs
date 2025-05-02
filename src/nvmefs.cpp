@@ -93,6 +93,7 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 }
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+	printf("=== Read ===\n");
 	auto start_time = std::chrono::high_resolution_clock::now();
 	// api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
@@ -117,9 +118,11 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 
 	// Print the duration
 	std::cout << "Read took " << duration.count() << " milliseconds." << std::endl;
+	printf("=== End Read ===\n");
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
+	printf("=== Write ===\n");
 	auto start_time = std::chrono::high_resolution_clock::now();
 	// api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
@@ -143,6 +146,7 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 	// Print the duration
 	std::cout << "Write took " << duration.count() << " milliseconds." << std::endl;
+	printf("=== End Write ===\n");
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {

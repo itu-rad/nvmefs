@@ -245,9 +245,9 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 			if (interval < POKE_MAX_BACKOFF_TIME) {
 				interval *= 2;
 			}
-			queue_lock.lock();
+			// queue_lock.lock();
 			xnvme_queue_poke(queue, 0);
-			queue_lock.unlock();
+			// queue_lock.unlock();
 		}
 	} while (status != std::future_status::ready);
 
@@ -258,7 +258,7 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	auto end_time = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 	// Print the duration
-	printf("ReadAsync took %d milliseconds.", duration.count());
+	printf("ReadAsync took %d milliseconds.\n", duration.count());
 
 	return ctx.nr_lbas;
 }
@@ -304,9 +304,9 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 			if (interval < POKE_MAX_BACKOFF_TIME) {
 				interval *= 2;
 			}
-			queue_lock.lock();
+			// queue_lock.lock();
 			xnvme_queue_poke(queue, 0);
-			queue_lock.unlock();
+			// queue_lock.unlock();
 		}
 	} while (status != std::future_status::ready);
 
@@ -315,7 +315,7 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	auto end_time = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 	// Print the duration
-	printf("WriteAsync took %d milliseconds.", duration.count());
+	printf("WriteAsync took %d milliseconds.\n", duration.count());
 
 	return ctx.nr_lbas;
 }

@@ -113,10 +113,10 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 	// api_lock.unlock();
 
 	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
 	// Print the duration
-	std::cout << "Read took " << duration.count() << " microseconds." << std::endl;
+	std::cout << "Read took " << duration.count() << " milliseconds." << std::endl;
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
@@ -140,9 +140,9 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 	UpdateMetadata(*cmd_ctx);
 	// api_lock.unlock();
 	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 	// Print the duration
-	std::cout << "Write took " << duration.count() << " microseconds." << std::endl;
+	std::cout << "Write took " << duration.count() << " milliseconds." << std::endl;
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
@@ -657,9 +657,9 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 	}
 
 	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 	// Print the duration
-	std::cout << "GetLBA took " << duration.count() << " microseconds." << std::endl;
+	std::cout << "GetLBA took " << duration.count() << " milliseconds." << std::endl;
 
 	return lba;
 }

@@ -91,9 +91,9 @@ TemporaryBlock *NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
 	block->is_free = false; // Mark the block as used
 
 	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 	// Print the duration
-	printf("AllocateBlock took %d microseconds.\n", duration.count());
+	printf("AllocateBlock took %d milliseconds.\n", duration.count());
 
 	return block;
 }
@@ -162,9 +162,9 @@ void NvmeTemporaryBlockManager::FreeBlock(TemporaryBlock *block) {
 	PushFreeBlock(block);
 
 	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 	// Print the duration
-	printf("FreeBlock took %d microseconds.\n", duration.count());
+	printf("FreeBlock took %d milliseconds.\n", duration.count());
 }
 
 void NvmeTemporaryBlockManager::PushFreeBlock(TemporaryBlock *block) {

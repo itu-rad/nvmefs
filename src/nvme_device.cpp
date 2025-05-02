@@ -210,7 +210,6 @@ void NvmeDevice::CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args) {
 
 idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 
-	// auto start_time = std::chrono::high_resolution_clock::now();
 	const NvmeCmdContext &ctx = static_cast<const NvmeCmdContext &>(context);
 	D_ASSERT(ctx.nr_lbas > 0);
 	// We only support offset reads within a single block
@@ -221,9 +220,9 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	// queue_lock.lock();
+	queue_lock.lock();
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
-	// queue_lock.unlock();
+	queue_lock.unlock();
 
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();
@@ -242,26 +241,20 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	}
 
 	do {
-		// queue_lock.lock();
+		queue_lock.lock();
 		xnvme_queue_poke(queue, 0);
 		status = fut.wait_for(interval);
-		// queue_lock.unlock();
+		queue_lock.unlock();
 	} while (status != std::future_status::ready);
 
 	memcpy(buffer, dev_buffer + ctx.offset, ctx.nr_bytes);
 
 	FreeDeviceBuffer(dev_buffer);
 
-	// auto end_time = std::chrono::high_resolution_clock::now();
-	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-	// // Print the duration
-	// printf("ReadAsync took %d milliseconds.\n", duration.count());
-
 	return ctx.nr_lbas;
 }
 
 idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
-	// auto start_time = std::chrono::high_resolution_clock::now();
 	const NvmeCmdContext &ctx = static_cast<const NvmeCmdContext &>(context);
 	D_ASSERT(ctx.nr_lbas > 0);
 	// We only support offset reads within a single block
@@ -274,16 +267,16 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	// queue_lock.lock();
+	queue_lock.lock();
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
-	// queue_lock.unlock();
+	queue_lock.unlock();
 
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();
 
-	// cb_args.map_lock.lock();
+	cb_args.map_lock.lock();
 	cb_args.notifier[xnvme_ctx] = std::move(cb_notify);
-	// cb_args.map_lock.unlock();
+	cb_args.map_lock.unlock();
 
 	std::future_status status;
 	std::chrono::milliseconds interval = std::chrono::milliseconds(0);
@@ -295,18 +288,13 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	}
 
 	do {
-		// queue_lock.lock();
+		queue_lock.lock();
 		xnvme_queue_poke(queue, 0);
 		status = fut.wait_for(interval);
-		// queue_lock.unlock();
+		queue_lock.unlock();
 	} while (status != std::future_status::ready);
 
 	FreeDeviceBuffer(dev_buffer);
-
-	// auto end_time = std::chrono::high_resolution_clock::now();
-	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-	// // Print the duration
-	// printf("WriteAsync took %d milliseconds.\n", duration.count());
 
 	return ctx.nr_lbas;
 }

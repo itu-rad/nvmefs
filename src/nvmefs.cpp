@@ -93,8 +93,8 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 }
 
 void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	printf("=== Read ===\n");
-	auto start_time = std::chrono::high_resolution_clock::now();
+	// printf("=== Read ===\n");
+	// auto start_time = std::chrono::high_resolution_clock::now();
 	// api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
 	DeviceGeometry geo = device->GetDeviceGeometry();
@@ -113,16 +113,16 @@ void NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, id
 	device->Read(buffer, *cmd_ctx);
 	// api_lock.unlock();
 
-	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+	// auto end_time = std::chrono::high_resolution_clock::now();
+	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-	// Print the duration
-	std::cout << "Read took " << duration.count() << " milliseconds." << std::endl;
-	printf("=== End Read ===\n");
+	// // Print the duration
+	// std::cout << "Read took " << duration.count() << " milliseconds." << std::endl;
+	// printf("=== End Read ===\n");
 }
 
 void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
-	printf("=== Write ===\n");
+	// printf("=== Write ===\n");
 	auto start_time = std::chrono::high_resolution_clock::now();
 	// api_lock.lock();
 	NvmeFileHandle &fh = handle.Cast<NvmeFileHandle>();
@@ -142,11 +142,11 @@ void NvmeFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 	idx_t written_lbas = device->Write(buffer, *cmd_ctx);
 	UpdateMetadata(*cmd_ctx);
 	// api_lock.unlock();
-	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-	// Print the duration
-	std::cout << "Write took " << duration.count() << " milliseconds." << std::endl;
-	printf("=== End Write ===\n");
+	// auto end_time = std::chrono::high_resolution_clock::now();
+	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+	// // Print the duration
+	// std::cout << "Write took " << duration.count() << " milliseconds." << std::endl;
+	// printf("=== End Write ===\n");
 }
 
 int64_t NvmeFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
@@ -612,7 +612,7 @@ MetadataType NvmeFileSystem::GetMetadataType(const string &filename) {
 }
 
 idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t location, idx_t nr_lbas) {
-	auto start_time = std::chrono::high_resolution_clock::now();
+	// auto start_time = std::chrono::high_resolution_clock::now();
 	idx_t lba {};
 	MetadataType type = GetMetadataType(filename);
 	DeviceGeometry geo = device->GetDeviceGeometry();
@@ -660,10 +660,10 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 		break;
 	}
 
-	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-	// Print the duration
-	std::cout << "GetLBA took " << duration.count() << " milliseconds." << std::endl;
+	// auto end_time = std::chrono::high_resolution_clock::now();
+	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+	// // Print the duration
+	// std::cout << "GetLBA took " << duration.count() << " milliseconds." << std::endl;
 
 	return lba;
 }

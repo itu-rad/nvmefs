@@ -61,7 +61,7 @@ uint8_t NvmeTemporaryBlockManager::GetFreeListIndex(idx_t lba_amount) {
 }
 
 TemporaryBlock *NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
-	auto start_time = std::chrono::high_resolution_clock::now();
+	// auto start_time = std::chrono::high_resolution_clock::now();
 	// Get the free list index for the given size
 	uint8_t free_list_index = GetFreeListIndex(lba_amount);
 
@@ -90,10 +90,10 @@ TemporaryBlock *NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
 	// Return the block
 	block->is_free = false; // Mark the block as used
 
-	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-	// Print the duration
-	printf("AllocateBlock took %d milliseconds.\n", duration.count());
+	// auto end_time = std::chrono::high_resolution_clock::now();
+	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+	// // Print the duration
+	// printf("AllocateBlock took %d milliseconds.\n", duration.count());
 
 	return block;
 }
@@ -150,7 +150,7 @@ TemporaryBlock *NvmeTemporaryBlockManager::SplitBlock(TemporaryBlock *block, idx
 
 void NvmeTemporaryBlockManager::FreeBlock(TemporaryBlock *block) {
 
-	auto start_time = std::chrono::high_resolution_clock::now();
+	// auto start_time = std::chrono::high_resolution_clock::now();
 
 	// Mark the block as free
 	block->is_free = true;
@@ -161,10 +161,10 @@ void NvmeTemporaryBlockManager::FreeBlock(TemporaryBlock *block) {
 	// Add the block to the free list
 	PushFreeBlock(block);
 
-	auto end_time = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-	// Print the duration
-	printf("FreeBlock took %d milliseconds.\n", duration.count());
+	// auto end_time = std::chrono::high_resolution_clock::now();
+	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+	// // Print the duration
+	// printf("FreeBlock took %d milliseconds.\n", duration.count());
 }
 
 void NvmeTemporaryBlockManager::PushFreeBlock(TemporaryBlock *block) {

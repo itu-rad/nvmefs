@@ -4,7 +4,8 @@ namespace duckdb {
 
 std::recursive_mutex NvmeDevice::queue_lock;
 
-NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend, const bool async)
+NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend,
+                       const bool async)
     : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async) {
 	xnvme_opts opts = xnvme_opts_default();
 	PrepareOpts(opts);
@@ -70,7 +71,7 @@ idx_t NvmeDevice::Write(void *buffer, const CmdContext &context) {
 }
 
 idx_t NvmeDevice::Read(void *buffer, const CmdContext &context) {
-	if (async){
+	if (async) {
 		return ReadAsync(buffer, context);
 	}
 
@@ -174,9 +175,9 @@ xnvme_cmd_ctx NvmeDevice::PrepareReadContext(idx_t plid_idx) {
 }
 
 void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
-	if(this->async){
+	if (this->async) {
 		opts.async = this->backend.data();
-		if (StringUtil::Equals(this->backend.data(),"io_uring_cmd")){
+		if (StringUtil::Equals(this->backend.data(), "io_uring_cmd")) {
 			opts.sync = "nvme";
 		}
 	} else {
@@ -202,6 +203,7 @@ void NvmeDevice::CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args) {
 }
 
 idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
+
 	const NvmeCmdContext &ctx = static_cast<const NvmeCmdContext &>(context);
 	D_ASSERT(ctx.nr_lbas > 0);
 	// We only support offset reads within a single block
@@ -222,7 +224,7 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	xnvme_cmd_ctx_set_cb(xnvme_ctx, CommandCallback, &cb_notify);
 
 	std::future_status status;
-	std::chrono::milliseconds interval = std::chrono::milliseconds(25);
+	std::chrono::milliseconds interval = std::chrono::milliseconds(0);
 
 	int err = xnvme_nvm_read(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 	if (err) {
@@ -231,18 +233,11 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	}
 
 	do {
+		queue_lock.lock();
+		xnvme_queue_poke(queue, 0);
 		status = fut.wait_for(interval);
-		if(status != std::future_status::ready) {
-
-			if (interval < POKE_MAX_BACKOFF_TIME) {
-				interval *= 2;
-			}
-			queue_lock.lock();
-			xnvme_queue_poke(queue, 0);
-			queue_lock.unlock();
-		}
+		queue_lock.unlock();
 	} while (status != std::future_status::ready);
-
 
 	memcpy(buffer, dev_buffer + ctx.offset, ctx.nr_bytes);
 
@@ -274,7 +269,7 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	xnvme_cmd_ctx_set_cb(xnvme_ctx, CommandCallback, &cb_notify);
 
 	std::future_status status;
-	std::chrono::milliseconds interval = std::chrono::milliseconds(25);
+	std::chrono::milliseconds interval = std::chrono::milliseconds(0);
 
 	int err = xnvme_nvm_write(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 	if (err) {
@@ -283,16 +278,10 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	}
 
 	do {
+		queue_lock.lock();
+		xnvme_queue_poke(queue, 0);
 		status = fut.wait_for(interval);
-		if(status != std::future_status::ready) {
-
-			if (interval < POKE_MAX_BACKOFF_TIME) {
-				interval *= 2;
-			}
-			queue_lock.lock();
-			xnvme_queue_poke(queue, 0);
-			queue_lock.unlock();
-		}
+		queue_lock.unlock();
 	} while (status != std::future_status::ready);
 
 	FreeDeviceBuffer(dev_buffer);

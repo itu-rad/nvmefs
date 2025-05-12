@@ -5,8 +5,8 @@ namespace duckdb {
 std::recursive_mutex NvmeDevice::queue_lock;
 
 NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend,
-                       const bool async)
-    : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async) {
+                       const bool async, const idx_t max_threads)
+    : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async), max_threads(max_threads) {
 	xnvme_opts opts = xnvme_opts_default();
 	PrepareOpts(opts);
 	device = xnvme_dev_open(device_path.c_str(), &opts);

@@ -21,7 +21,7 @@ struct NvmeCmdContext : public CmdContext {
 
 class NvmeDevice : public Device {
 public:
-	NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend, const bool async);
+	NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend, const bool async, const idx_t max_threads);
 	~NvmeDevice();
 
 	/// @brief Writes data from the input buffer to the device at the specified LBA position
@@ -104,6 +104,7 @@ private:
 	const string backend;
 	const bool async;
 	static std::recursive_mutex queue_lock;
+	const idx_t max_threads;
 };
 
 } // namespace duckdb

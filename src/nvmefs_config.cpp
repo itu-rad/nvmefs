@@ -69,10 +69,7 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 	}
 	idx_t max_wal_size = 1ULL << 25; // 32 MiB
 
-	idx_t max_threads = 1;
-	if (config.options.maximum_threads != DConstants::INVALID_INDEX) {
-		max_temp_size = static_cast<idx_t>(config.options.maximum_threads);
-	}
+	idx_t max_threads = config.GetSystemMaxThreads(instance.GetFileSystem());
 
 
 	secret_reader.TryGetSecretKeyOrSetting<string>("nvme_device_path", "nvme_device_path", device);

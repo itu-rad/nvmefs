@@ -97,13 +97,12 @@ private:
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
 	xnvme_dev *device;
-	xnvme_queue *queue;
 	const string dev_path;
 	const idx_t plhdls;
 	DeviceGeometry geometry;
 	const string backend;
 	const bool async;
-	static std::recursive_mutex queue_lock;
+	vector<xnvme_queue*> queues;
 	const idx_t max_threads;
 };
 

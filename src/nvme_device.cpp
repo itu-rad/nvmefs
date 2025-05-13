@@ -2,11 +2,9 @@
 
 namespace duckdb {
 
-std::recursive_mutex NvmeDevice::queue_lock;
-
 NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend,
-                       const bool async)
-    : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async) {
+                       const bool async, const idx_t max_threads)
+    : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async), max_threads(max_threads) {
 	xnvme_opts opts = xnvme_opts_default();
 	PrepareOpts(opts);
 	device = xnvme_dev_open(device_path.c_str(), &opts);
@@ -16,12 +14,8 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 	}
 
 	// Initialize the xnvme queue for asynchronous IO
-	queue = nullptr;
 	if (async) {
-		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queue);
-		if (err) {
-			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
-		}
+		queues = vector<xnvme_queue*>(max_threads, nullptr);
 		// Set the callback function for completed commands. No callback arguments, hence last argument equal to NULL
 	}
 
@@ -31,7 +25,9 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 
 NvmeDevice::~NvmeDevice() {
 	if (async) {
-		xnvme_queue_term(queue);
+		for(const auto &queue : queues){
+			xnvme_queue_term(queue);
+		}
 	}
 	xnvme_dev_close(device);
 }
@@ -196,10 +192,8 @@ void NvmeDevice::CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args) {
 	}
 
 	// Put command context back to queue, and notify the future
-	queue_lock.lock();
 	xnvme_queue_put_cmd_ctx(ctx->async.queue, ctx);
 	notifier->set_value();
-	queue_lock.unlock();
 }
 
 idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
@@ -214,9 +208,17 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	queue_lock.lock();
+	idx_t index = TaskScheduler::GetEstimatedCPUId() & max_threads;
+	xnvme_queue *queue = queues[index];
+	if (!queue) {
+		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
+		if (err) {
+			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
+		}
+		queue = queues[index];
+	}
+
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
-	queue_lock.unlock();
 
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();
@@ -233,10 +235,8 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	}
 
 	do {
-		queue_lock.lock();
 		xnvme_queue_poke(queue, 0);
 		status = fut.wait_for(interval);
-		queue_lock.unlock();
 	} while (status != std::future_status::ready);
 
 	memcpy(buffer, dev_buffer + ctx.offset, ctx.nr_bytes);
@@ -259,9 +259,17 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	queue_lock.lock();
+	idx_t index = TaskScheduler::GetEstimatedCPUId() & max_threads;
+	xnvme_queue *queue = queues[index];
+	if (!queue) {
+		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
+		if (err) {
+			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
+		}
+		queue = queues[index];
+	}
+
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
-	queue_lock.unlock();
 
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();
@@ -278,10 +286,8 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	}
 
 	do {
-		queue_lock.lock();
 		xnvme_queue_poke(queue, 0);
 		status = fut.wait_for(interval);
-		queue_lock.unlock();
 	} while (status != std::future_status::ready);
 
 	FreeDeviceBuffer(dev_buffer);

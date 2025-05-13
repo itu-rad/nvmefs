@@ -21,6 +21,7 @@ struct NvmeConfig {
 	uint64_t plhdls;
 	uint64_t max_temp_size;
 	uint64_t max_wal_size;
+	uint64_t max_threads;
 };
 
 class NvmeConfigManager {

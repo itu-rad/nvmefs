@@ -69,6 +69,9 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 	}
 	idx_t max_wal_size = 1ULL << 25; // 32 MiB
 
+	idx_t max_threads = config.GetSystemMaxThreads(instance.GetFileSystem());
+
+
 	secret_reader.TryGetSecretKeyOrSetting<string>("nvme_device_path", "nvme_device_path", device);
 	secret_reader.TryGetSecretKeyOrSetting<string>("backend", "backend", backend);
 	secret_reader.TryGetSecretKeyOrSetting<int64_t>("fdp_plhdls", "fdp_plhdls", plhdls);
@@ -85,7 +88,8 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 	                   .async = IsAsynchronousBackend(backend),
 	                   .plhdls = static_cast<idx_t>(plhdls),
 	                   .max_temp_size = max_temp_size,
-	                   .max_wal_size = max_wal_size};
+	                   .max_wal_size = max_wal_size,
+					   .max_threads = max_threads};
 }
 
 bool NvmeConfigManager::IsAsynchronousBackend(const string &backend) {

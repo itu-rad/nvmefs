@@ -242,12 +242,22 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 		idx_t new_lba_location = nvme_handle.CalculateRequiredLBACount(new_size);
 
 		switch (type) {
-		case MetadataType::WAL:
-			wal_location.store(metadata->wal_start + new_lba_location);
-			break;
-		case MetadataType::DATABASE:
-			db_location.store(metadata->db_start + new_lba_location);
-			break;
+		case MetadataType::WAL: {
+			idx_t expected_location = wal_location.load();
+			idx_t new_location = metadata->wal_start + new_lba_location;
+
+			do {
+				expected_location = wal_location.load();
+			} while (!wal_location.compare_exchange_weak(expected_location, new_location));
+		} break;
+		case MetadataType::DATABASE: {
+			idx_t expected_location = db_location.load();
+			idx_t new_location = metadata->db_start + new_lba_location;
+
+			do {
+				expected_location = db_location.load();
+			} while (!db_location.compare_exchange_weak(expected_location, new_location));
+		} break;
 		case MetadataType::TEMPORARY: {
 			temp_lock.lock();
 			TemporaryFileMetadata tfmeta = file_to_temp_meta[nvme_handle.path];
@@ -554,24 +564,41 @@ void NvmeFileSystem::WriteMetadata(GlobalMetadata &global) {
 void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 	NvmeCmdContext &ctx = static_cast<NvmeCmdContext &>(context);
 	MetadataType type = GetMetadataType(ctx.filepath);
-	bool write = false;
 
 	switch (type) {
-	case MetadataType::WAL:
-		if (ctx.start_lba >= wal_location.load()) {
-			wal_location.fetch_add(ctx.nr_lbas);
-		}
-		break;
+	case MetadataType::WAL: {
+		idx_t expected_location = wal_location.load();
+		idx_t new_location = expected_location + ctx.nr_lbas;
+		do {
+			// Location does not need to be updated from this thread anymore
+			// Another thread have surpassed it
+			if(ctx.start_lba < expected_location){
+				break;
+			}
+
+			expected_location = wal_location.load();
+
+		} while (!wal_location.compare_exchange_weak(expected_location, new_location));
+	} break;
 	case MetadataType::TEMPORARY:
 		// The temporary metadata remain static given that location is unused.
 		// The file_to_temp_meta map will be updated during GetLBA, hence
 		// no action is required here.
 		break;
-	case MetadataType::DATABASE:
-		if (ctx.start_lba >= db_location.load()) {
-			db_location.fetch_add(ctx.nr_lbas);
-		}
-		break;
+	case MetadataType::DATABASE: {
+		idx_t expected_location = db_location.load();
+		idx_t new_location = expected_location + ctx.nr_lbas;
+		do {
+			// Location does not need to be updated from this thread anymore
+			// Another thread have surpassed it
+			if(ctx.start_lba < expected_location){
+				break;
+			}
+
+			expected_location = db_location.load();
+
+		} while (!db_location.compare_exchange_weak(expected_location, new_location));
+	} break;
 	default:
 		throw InvalidInputException("no such metadatatype");
 	}

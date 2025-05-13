@@ -67,7 +67,7 @@ std::recursive_mutex NvmeFileSystem::temp_lock;
 
 NvmeFileSystem::NvmeFileSystem(NvmeConfig config)
     : allocator(Allocator::DefaultAllocator()),
-      device(make_uniq<NvmeDevice>(config.device_path, config.plhdls, config.backend, config.async)),
+      device(make_uniq<NvmeDevice>(config.device_path, config.plhdls, config.backend, config.async, config.max_threads)),
       max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size), db_location(0), wal_location(0) {
 }
 
@@ -381,9 +381,9 @@ bool NvmeFileSystem::ListFiles(const string &directory,
 			const string db_wal = db_filename_with_ext + ".wal";
 			const string db_tmp = "/tmp";
 
-			callback(db_filename_with_ext, false);
-			callback(db_tmp, true);
-			callback(db_wal, false);
+		callback(db_filename_with_ext, false);
+		callback(db_tmp, true);
+		callback(db_wal, false);
 
 			dir = true;
 		} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
@@ -420,7 +420,8 @@ optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
 		}
 		temp_lock.unlock();
 
-		remaining = (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + (temp_max_bytes - temp_used_bytes);
+		remaining =
+		    (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + (temp_max_bytes - temp_used_bytes);
 	} else if (StringUtil::Equals(path.data(), NVMEFS_TMP_DIR_PATH.data())) {
 		idx_t temp_max_bytes = ((geo.lba_count - 1) - metadata->tmp_start) * geo.lba_size;
 		idx_t temp_used_bytes{};
@@ -589,6 +590,7 @@ MetadataType NvmeFileSystem::GetMetadataType(const string &filename) {
 }
 
 idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t location, idx_t nr_lbas) {
+	// auto start_time = std::chrono::high_resolution_clock::now();
 	idx_t lba {};
 	MetadataType type = GetMetadataType(filename);
 	DeviceGeometry geo = device->GetDeviceGeometry();
@@ -633,6 +635,11 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 		throw InvalidInputException("No such metadata type");
 		break;
 	}
+
+	// auto end_time = std::chrono::high_resolution_clock::now();
+	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+	// // Print the duration
+	// std::cout << "GetLBA took " << duration.count() << " milliseconds." << std::endl;
 
 	return lba;
 }

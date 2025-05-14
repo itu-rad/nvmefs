@@ -246,17 +246,13 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 			idx_t expected_location = wal_location.load();
 			idx_t new_location = metadata->wal_start + new_lba_location;
 
-			do {
-				expected_location = wal_location.load();
-			} while (!wal_location.compare_exchange_weak(expected_location, new_location));
+			while (!wal_location.compare_exchange_weak(expected_location, new_location));
 		} break;
 		case MetadataType::DATABASE: {
 			idx_t expected_location = db_location.load();
 			idx_t new_location = metadata->db_start + new_lba_location;
 
-			do {
-				expected_location = db_location.load();
-			} while (!db_location.compare_exchange_weak(expected_location, new_location));
+			while (!db_location.compare_exchange_weak(expected_location, new_location));
 		} break;
 		case MetadataType::TEMPORARY: {
 			temp_lock.lock();
@@ -575,9 +571,6 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 			if(ctx.start_lba < expected_location){
 				break;
 			}
-
-			expected_location = wal_location.load();
-
 		} while (!wal_location.compare_exchange_weak(expected_location, new_location));
 	} break;
 	case MetadataType::TEMPORARY:
@@ -594,9 +587,6 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 			if(ctx.start_lba < expected_location){
 				break;
 			}
-
-			expected_location = db_location.load();
-
 		} while (!db_location.compare_exchange_weak(expected_location, new_location));
 	} break;
 	default:

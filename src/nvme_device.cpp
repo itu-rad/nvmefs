@@ -208,7 +208,8 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	idx_t index = TaskScheduler::GetEstimatedCPUId() & max_threads;
+	idx_t thread_id = TaskScheduler::GetEstimatedCPUId();
+	idx_t index = thread_id % max_threads;
 	xnvme_queue *queue = queues[index];
 	if (!queue) {
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
@@ -259,7 +260,8 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	idx_t index = TaskScheduler::GetEstimatedCPUId() & max_threads;
+	idx_t thread_id = TaskScheduler::GetEstimatedCPUId();
+	idx_t index = thread_id % max_threads;
 	xnvme_queue *queue = queues[index];
 	if (!queue) {
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);

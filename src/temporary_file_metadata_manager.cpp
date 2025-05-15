@@ -98,7 +98,7 @@ void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t
 void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t new_size) {
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
-	idx_t new_lba_location = new_size / 4096;
+	idx_t new_lba_location = tfmeta->block_range->GetStartLBA() + (new_size / lba_size);
 
 	idx_t current_lba = tfmeta->lba_location.load();
 	while (current_lba > new_lba_location) {

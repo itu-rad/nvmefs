@@ -67,7 +67,8 @@ std::recursive_mutex NvmeFileSystem::temp_lock;
 
 NvmeFileSystem::NvmeFileSystem(NvmeConfig config)
     : allocator(Allocator::DefaultAllocator()),
-      device(make_uniq<NvmeDevice>(config.device_path, config.plhdls, config.backend, config.async, config.max_threads)),
+      device(
+          make_uniq<NvmeDevice>(config.device_path, config.plhdls, config.backend, config.async, config.max_threads)),
       max_temp_size(config.max_temp_size), max_wal_size(config.max_wal_size), db_location(0), wal_location(0) {
 }
 
@@ -77,6 +78,10 @@ NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device)
 }
 
 NvmeFileSystem::~NvmeFileSystem() {
+	if (!metadata) {
+		return;
+	}
+
 	WriteMetadata(*metadata);
 }
 
@@ -380,28 +385,28 @@ idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 }
 
 bool NvmeFileSystem::ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
-	FileOpener *opener) {
-		bool dir = false;
-		if (StringUtil::Equals(directory.data(), NVMEFS_PATH_PREFIX.data())) {
-			const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
-			const string db_filename_with_ext = db_filename_no_ext + ".db";
-			const string db_wal = db_filename_with_ext + ".wal";
-			const string db_tmp = "/tmp";
+                               FileOpener *opener) {
+	bool dir = false;
+	if (StringUtil::Equals(directory.data(), NVMEFS_PATH_PREFIX.data())) {
+		const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
+		const string db_filename_with_ext = db_filename_no_ext + ".db";
+		const string db_wal = db_filename_with_ext + ".wal";
+		const string db_tmp = "/tmp";
 
 		callback(db_filename_with_ext, false);
 		callback(db_tmp, true);
 		callback(db_wal, false);
 
-			dir = true;
-		} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
-			temp_lock.lock();
+		dir = true;
+	} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
+		temp_lock.lock();
 		for (const auto &kv : file_to_temp_meta) {
-				callback(StringUtil::GetFileName(kv.first), false);
-			}
-			temp_lock.unlock();
-			dir = true;
+			callback(StringUtil::GetFileName(kv.first), false);
 		}
-		return dir;
+		temp_lock.unlock();
+		dir = true;
+	}
+	return dir;
 }
 
 optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path) {

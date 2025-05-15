@@ -671,19 +671,18 @@ TEST_F(DiskInteractionTest, TrimWrittenLocationInFileRemovesWrittenDataButKeepsS
 	string hello = "Hello, World!";
 	vector<char> data_ptr {hello.begin(), hello.end()};
 	int data_size = data_ptr.size();
-	file->Write(data_ptr.data(), data_size, page_size * 4); // Write data at the 16th byte of the device
+	file->Write(data_ptr.data(), data_size, page_size * 4);
 
 	// Read the data back
 	vector<char> buffer(data_size);
-	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
-
+	file->Read(buffer.data(), data_size, page_size * 4);
 	// Check that the data is correct
 	EXPECT_EQ(string(buffer.data(), data_size), hello);
 
 	file->Trim(page_size * 4, data_size);
 
 	memset(buffer.data(), 0, data_size);
-	file->Read(buffer.data(), data_size, page_size * 4); // Read data from the 16th byte of the device
+	file->Read(buffer.data(), data_size, page_size * 4);
 
 	// Check that the data is correct
 	EXPECT_NE(string(buffer.data(), data_size), hello);

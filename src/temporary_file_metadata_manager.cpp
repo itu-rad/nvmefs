@@ -56,7 +56,7 @@ inline unique_ptr<TempFileMetadata> CreateTempFileMetadata(const string &filenam
 void TemporaryFileMetadataManager::CreateFile(const string &filename) {
 
 	// We can check that the file exists without locking because duckdb handles the synchronization for us(per file)
-	if (file_to_temp_meta.find(filename) != file_to_temp_meta.end()) {
+	if (file_to_temp_meta.count(filename)) {
 		file_to_temp_meta[filename]->is_active.store(true);
 		return;
 	}

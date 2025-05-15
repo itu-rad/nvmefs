@@ -246,13 +246,15 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 			idx_t expected_location = wal_location.load();
 			idx_t new_location = metadata->wal_start + new_lba_location;
 
-			while (!wal_location.compare_exchange_weak(expected_location, new_location));
+			while (!wal_location.compare_exchange_weak(expected_location, new_location))
+				;
 		} break;
 		case MetadataType::DATABASE: {
 			idx_t expected_location = db_location.load();
 			idx_t new_location = metadata->db_start + new_lba_location;
 
-			while (!db_location.compare_exchange_weak(expected_location, new_location));
+			while (!db_location.compare_exchange_weak(expected_location, new_location))
+				;
 		} break;
 		case MetadataType::TEMPORARY: {
 			temp_lock.lock();
@@ -345,10 +347,10 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 	switch (type) {
 	case WAL:
 		// Reset the location poitner (next lba to write to) to the start effectively removing the wal
-		max_seek_bound = ((metadata->tmp_start-1) - metadata->wal_start) * geo.lba_size;
+		max_seek_bound = ((metadata->tmp_start - 1) - metadata->wal_start) * geo.lba_size;
 		break;
 	case DATABASE:
-		max_seek_bound = ((metadata->wal_start-1) - metadata->db_start) * geo.lba_size;
+		max_seek_bound = ((metadata->wal_start - 1) - metadata->db_start) * geo.lba_size;
 		break;
 	case TEMPORARY: {
 		temp_lock.lock();
@@ -377,8 +379,7 @@ idx_t NvmeFileSystem::SeekPosition(FileHandle &handle) {
 	return handle.Cast<NvmeFileHandle>().GetFilePointer();
 }
 
-bool NvmeFileSystem::ListFiles(const string &directory,
-	const std::function<void(const string &, bool)> &callback,
+bool NvmeFileSystem::ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
 	FileOpener *opener) {
 		bool dir = false;
 		if (StringUtil::Equals(directory.data(), NVMEFS_PATH_PREFIX.data())) {
@@ -394,7 +395,7 @@ bool NvmeFileSystem::ListFiles(const string &directory,
 			dir = true;
 		} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
 			temp_lock.lock();
-			for(const auto& kv : file_to_temp_meta) {
+		for (const auto &kv : file_to_temp_meta) {
 				callback(StringUtil::GetFileName(kv.first), false);
 			}
 			temp_lock.unlock();
@@ -403,7 +404,7 @@ bool NvmeFileSystem::ListFiles(const string &directory,
 		return dir;
 }
 
-optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
+optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path) {
 	DeviceGeometry geo = device->GetDeviceGeometry();
 	const string db_filename_no_ext = StringUtil::GetFileStem(metadata->db_path);
 	const string db_filepath = NVMEFS_PATH_PREFIX + db_filename_no_ext + ".db";
@@ -411,17 +412,17 @@ optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
 
 	optional_idx remaining;
 
-	if (StringUtil::Equals(path.data(), NVMEFS_PATH_PREFIX.data())){
-		idx_t db_max_bytes = ((metadata->wal_start-1) - metadata->db_start) * geo.lba_size;
-		idx_t wal_max_bytes = ((metadata->tmp_start-1) - metadata->wal_start) * geo.lba_size;
-		idx_t temp_max_bytes = ((geo.lba_count-1) - metadata->tmp_start) * geo.lba_size;
+	if (StringUtil::Equals(path.data(), NVMEFS_PATH_PREFIX.data())) {
+		idx_t db_max_bytes = ((metadata->wal_start - 1) - metadata->db_start) * geo.lba_size;
+		idx_t wal_max_bytes = ((metadata->tmp_start - 1) - metadata->wal_start) * geo.lba_size;
+		idx_t temp_max_bytes = ((geo.lba_count - 1) - metadata->tmp_start) * geo.lba_size;
 
 		idx_t db_used_bytes = (db_location.load() - metadata->db_start) * geo.lba_size;
 		idx_t wal_used_bytes = (wal_location.load() - metadata->wal_start) * geo.lba_size;
-		idx_t temp_used_bytes{};
+		idx_t temp_used_bytes {};
 
 		temp_lock.lock();
-		for (const auto& kv : file_to_temp_meta) {
+		for (const auto &kv : file_to_temp_meta) {
 			temp_used_bytes += kv.second.block_size * kv.second.block_map.size();
 		}
 		temp_lock.unlock();
@@ -430,10 +431,10 @@ optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path){
 		    (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + (temp_max_bytes - temp_used_bytes);
 	} else if (StringUtil::Equals(path.data(), NVMEFS_TMP_DIR_PATH.data())) {
 		idx_t temp_max_bytes = ((geo.lba_count - 1) - metadata->tmp_start) * geo.lba_size;
-		idx_t temp_used_bytes{};
+		idx_t temp_used_bytes {};
 
 		temp_lock.lock();
-		for (const auto& kv : file_to_temp_meta) {
+		for (const auto &kv : file_to_temp_meta) {
 			temp_used_bytes += kv.second.block_size * kv.second.block_map.size();
 		}
 		temp_lock.unlock();
@@ -564,11 +565,11 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 	switch (type) {
 	case MetadataType::WAL: {
 		idx_t expected_location = wal_location.load();
-		idx_t new_location = expected_location + ctx.nr_lbas;
+		idx_t new_location = ctx.start_lba + ctx.nr_lbas;
 		do {
 			// Location does not need to be updated from this thread anymore
 			// Another thread have surpassed it
-			if(ctx.start_lba < expected_location){
+			if (new_location < expected_location) {
 				break;
 			}
 		} while (!wal_location.compare_exchange_weak(expected_location, new_location));
@@ -580,11 +581,11 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 		break;
 	case MetadataType::DATABASE: {
 		idx_t expected_location = db_location.load();
-		idx_t new_location = expected_location + ctx.nr_lbas;
+		idx_t new_location = ctx.start_lba + ctx.nr_lbas;
 		do {
 			// Location does not need to be updated from this thread anymore
 			// Another thread have surpassed it
-			if(ctx.start_lba < expected_location){
+			if (new_location < expected_location) {
 				break;
 			}
 		} while (!db_location.compare_exchange_weak(expected_location, new_location));
@@ -664,8 +665,8 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 bool NvmeFileSystem::IsLBAInRange(const string &filename, idx_t start_lba, idx_t lba_count) {
 	DeviceGeometry geo = device->GetDeviceGeometry();
 	MetadataType type = GetMetadataType(filename);
-	idx_t current_start{};
-	idx_t current_end{};
+	idx_t current_start {};
+	idx_t current_end {};
 
 	switch (type) {
 	case MetadataType::WAL:

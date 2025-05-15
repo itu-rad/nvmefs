@@ -5,19 +5,19 @@ namespace duckdb {
 inline idx_t GetBufferSize(const string buffer_size_string) {
 
 	idx_t buffer_size = 262144;
-	if ("S32K")
+	if (buffer_size_string == "S32K")
 		buffer_size = 32768;
-	else if ("S64K")
+	else if (buffer_size_string == "S64K")
 		buffer_size = 65536;
-	else if ("S96K")
+	else if (buffer_size_string == "S96K")
 		buffer_size = 98304;
-	else if ("S128K")
+	else if (buffer_size_string == "S128K")
 		buffer_size = 131072;
-	else if ("S160K")
+	else if (buffer_size_string == "S160K")
 		buffer_size = 163840;
-	else if ("S192K")
+	else if (buffer_size_string == "S192K")
 		buffer_size = 196608;
-	else if ("S224K")
+	else if (buffer_size_string == "S224K")
 		buffer_size = 229376;
 
 	return buffer_size;

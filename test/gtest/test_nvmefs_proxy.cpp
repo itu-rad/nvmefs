@@ -127,7 +127,7 @@ TEST_F(DiskInteractionTest, FileExistsReturnTrueWhenTemporaryFileExists) {
 	string hello = "hello temp";
 	vector<char> hello_buf {hello.begin(), hello.end()};
 	int bytes_to_read_write = hello.size();
-	string tmp_file_path = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 32768, 0);
+	string tmp_file_path = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
 	fh = file_system->OpenFile(tmp_file_path, flags);
 	fh->Write(hello_buf.data(), bytes_to_read_write);
 
@@ -191,8 +191,8 @@ TEST_F(DiskInteractionTest, GetFileSizeOpensTwoTemporaryFileReturnCorrectSizes) 
 	DeviceGeometry geo = file_system->GetDevice().GetDeviceGeometry();
 
 	// Open two temporary files, write to the second
-	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 32768, 0);
-	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 65536, 0);
+	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
+	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S64k", 0);
 	unique_ptr<FileHandle> tmp_fh_1 = file_system->OpenFile(tmp_file_path1, flags);
 	unique_ptr<FileHandle> tmp_fh_2 = file_system->OpenFile(tmp_file_path2, flags);
 
@@ -225,7 +225,7 @@ TEST_F(DiskInteractionTest, RemoveDirectoryGivenTemporyDirectoyRemovesSuccessful
 	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
 
 	// Write a file to temporary folder
-	string temp_filename = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 32768, 0);
+	string temp_filename = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
 	vector<char> buf {'H', 'E', 'L', 'L', 'O'};
 	fh = file_system->OpenFile(temp_filename, flags);
 	fh->Write(buf.data(), buf.size());
@@ -299,7 +299,7 @@ TEST_F(DiskInteractionTest, RemoveFileGivenValidTempFileRemovesIt) {
 
 	// Write temporary file
 
-	string temp_filename = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 32768, 0);
+	string temp_filename = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
 	vector<char> buf {'H', 'E', 'L', 'L', 'O'};
 	fh = file_system->OpenFile(temp_filename, flags);
 	fh->Write(buf.data(), buf.size());
@@ -374,8 +374,7 @@ TEST_F(DiskInteractionTest, WriteAndReadDataDoesNotOverlapOtherCategories) {
 	// Create a file
 	string file_path = "nvmefs://test.db";
 	string wal_file_path = "nvmefs://test.db.wal";
-	string tmp_file_path =
-	    StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", DEFAULT_BLOCK_ALLOC_SIZE, 0);
+	string tmp_file_path = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "DEFAULT", 0);
 	unique_ptr<FileHandle> db_file = file_system->OpenFile(
 	    file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ | FileFlags::FILE_FLAGS_FILE_CREATE);
 	ASSERT_TRUE(db_file != nullptr);
@@ -513,8 +512,7 @@ TEST_F(DiskInteractionTest, SeekOutOfTmpMetadataBounds) {
 	file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
 
 	// Create a file
-	string file_path =
-	    StringUtil::Format("nvmefs://test.db/tmp/duckdb_temp_storage_%d-%llu.tmp", DEFAULT_BLOCK_ALLOC_SIZE, 0);
+	string file_path = StringUtil::Format("nvmefs://test.db/tmp/duckdb_temp_storage_%s-%llu.tmp", "DEFAULT", 0);
 
 	unique_ptr<FileHandle> file = file_system->OpenFile(
 	    file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ | FileFlags::FILE_FLAGS_FILE_CREATE);
@@ -631,8 +629,7 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForWALFileWithLoca
 
 TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForTmpFile) {
 	// Create a file
-	string file_path =
-	    StringUtil::Format("nvmefs://test.db/tmp/duckdb_temp_storage_%d-%llu.tmp", DEFAULT_BLOCK_ALLOC_SIZE, 0);
+	string file_path = StringUtil::Format("nvmefs://test.db/tmp/duckdb_temp_storage_%s-%llu.tmp", "DEFAULT", 0);
 
 	// Ensure that metadata is created
 	file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
@@ -734,7 +731,7 @@ TEST_F(DiskInteractionTest, TrimWrittenLocationInFileFromSeekPositionRemovesWrit
 
 TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
 	// Create a file
-	string file_path = StringUtil::Format("nvmefs://test.db/tmp/duckdb_temp_storage_%d-%llu.tmp", 32768, 0);
+	string file_path = StringUtil::Format("nvmefs://test.db/tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
 
 	// Ensure that metadata is created
 	file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
@@ -822,8 +819,8 @@ TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectLi
 	unique_ptr<FileHandle> fh = file_system->OpenFile("nvmefs://test.db", flags);
 
 	// Open two temporary files, write to both and verify
-	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 32768, 0);
-	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 65536, 0);
+	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
+	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S64K", 0);
 	unique_ptr<FileHandle> tmp_fh_1 = file_system->OpenFile(tmp_file_path1, flags);
 	unique_ptr<FileHandle> tmp_fh_2 = file_system->OpenFile(tmp_file_path2, flags);
 
@@ -848,8 +845,8 @@ TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectLi
 	bool dir = file_system->ListFiles(tmp_dir_filepath, lister);
 
 	EXPECT_EQ(dir, true);
-	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple("duckdb_temp_storage_32768-0.tmp", false),
-	                                          std::make_tuple("duckdb_temp_storage_65536-0.tmp", false)));
+	EXPECT_THAT(results, UnorderedElementsAre(std::make_tuple("duckdb_temp_storage_S32K-0.tmp", false),
+	                                          std::make_tuple("duckdb_temp_storage_S64K-0.tmp", false)));
 }
 
 TEST_F(DiskInteractionTest, ListFilesOfEmptyTemporaryDirectoryReturnsNothing) {
@@ -915,7 +912,7 @@ TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWritesInTmpAndWalRetu
 	idx_t expected_size = (geo.lba_count * geo.lba_size) - (2 * geo.lba_size) - geo.lba_size - (4 * geo.lba_size);
 
 	// Allocate files and write to them
-	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 32768, 0);
+	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
 	unique_ptr<FileHandle> tmp_fh = file_system->OpenFile(tmp_file_path1, flags);
 	unique_ptr<FileHandle> wal_fh = file_system->OpenFile("nvmefs://test.db.wal", flags);
 	vector<char> tmp_buf(2 * geo.lba_size);
@@ -940,8 +937,8 @@ TEST_F(DiskInteractionTest, GetAvailableDiskSpaceTmpDirectoryWithTwoFilesReturnC
 
 	// Two temp files with 2 and 3 LBAs written to them
 	// Allocate files and write to them
-	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 32768, 0);
-	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%d-%llu.tmp", 65536, 0);
+	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
+	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S64K", 0);
 	unique_ptr<FileHandle> test1_fh = file_system->OpenFile(tmp_file_path1, flags);
 	unique_ptr<FileHandle> test2_fh = file_system->OpenFile(tmp_file_path2, flags);
 	vector<char> test1_buf(3 * geo.lba_size);

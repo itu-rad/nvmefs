@@ -96,6 +96,10 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 		}
 	}
 
+	if (path == NVMEFS_GLOBAL_METADATA_PATH) {
+		return make_uniq<NvmeFileHandle>(*this, path, flags);
+	}
+
 	if (flags.CreateFileIfNotExists() && GetMetadataType(path) == MetadataType::TEMPORARY) {
 		temp_meta_manager->CreateFile(path); // Create temporary file here since we ensure it is duckdb synchronized
 	}
@@ -193,7 +197,7 @@ bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener>
 		}
 		break;
 	case TEMPORARY:
-		temp_meta_manager->FileExists(filename);
+		exists = temp_meta_manager->FileExists(filename);
 		break;
 	default:
 		throw IOException("No such metadata type");
@@ -213,7 +217,7 @@ int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
 		nr_lbas = db_location.load() - metadata->db_start;
 		break;
 	case MetadataType::TEMPORARY: {
-		nr_lbas = temp_meta_manager->GetFileSize(fh.path);
+		nr_lbas = temp_meta_manager->GetFileSizeLBA(fh.path);
 		break;
 	}
 	case MetadataType::WAL:
@@ -334,7 +338,7 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 		max_seek_bound = ((metadata->wal_start - 1) - metadata->db_start) * geo.lba_size;
 		break;
 	case TEMPORARY: {
-		max_seek_bound = temp_meta_manager->GetFileSize(nvme_handle.path);
+		max_seek_bound = temp_meta_manager->GetFileSizeLBA(nvme_handle.path) * geo.lba_size;
 	} break;
 	default:
 		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
@@ -372,6 +376,7 @@ bool NvmeFileSystem::ListFiles(const string &directory, const std::function<void
 
 		dir = true;
 	} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
+		dir = true;
 		temp_meta_manager->ListFiles(directory, callback);
 	}
 	return dir;
@@ -491,7 +496,7 @@ unique_ptr<GlobalMetadata> NvmeFileSystem::ReadMetadata() {
 		DeviceGeometry geo = device->GetDeviceGeometry();
 		global = make_uniq<GlobalMetadata>(GlobalMetadata {});
 		memcpy(global.get(), buffer + nr_bytes_magic, nr_bytes_global);
-		temp_block_manager = make_uniq<NvmeTemporaryBlockManager>(global->tmp_start, geo.lba_count - 1);
+		temp_meta_manager = make_uniq<TemporaryFileMetadataManager>(global->tmp_start, geo.lba_count - 1, geo.lba_size);
 	}
 
 	allocator.FreeData(buffer, bytes_to_read);

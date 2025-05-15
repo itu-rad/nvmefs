@@ -48,6 +48,7 @@ void TemporaryFileMetadataManager::CreateFile(const string &filename) {
 	alloc_lock.unlock();
 
 	tfmeta->lba_location.store(tfmeta->block_range->GetStartLBA());
+	tfmeta->is_active.store(true);
 	file_to_temp_meta[filename] = std::move(tfmeta);
 }
 
@@ -91,24 +92,32 @@ void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t ne
 }
 
 void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
+
+	if (!file_to_temp_meta.count(filename)) {
+		return;
+	}
+
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
-	tfmeta->is_active.store(false); // Soft delete the file
+	if (tfmeta) {
+		tfmeta->is_active.store(false); // Soft delete the file
+	}
 }
 
 bool TemporaryFileMetadataManager::FileExists(const string &filename) {
 
-	if (file_to_temp_meta.find(filename) != file_to_temp_meta.end()) {
+	if (file_to_temp_meta.count(filename)) {
 		return file_to_temp_meta[filename]->is_active.load();
 	}
 
 	return false;
 }
 
-idx_t TemporaryFileMetadataManager::GetFileSize(const string &filename) {
+idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
+	idx_t location = tfmeta->lba_location.load();
 
-	return tfmeta->lba_location.load() * lba_size;
+	return tfmeta->lba_location.load() - tfmeta->block_range->GetStartLBA();
 }
 
 void TemporaryFileMetadataManager::Clear() {
@@ -126,7 +135,8 @@ idx_t TemporaryFileMetadataManager::GetAvailableSpace() {
 	idx_t available_space = lba_amount * lba_size;
 	for (auto &kv : file_to_temp_meta) {
 		if (kv.second->is_active.load()) {
-			available_space -= kv.second->block_range->GetSizeInBytes();
+			idx_t size = (kv.second->lba_location.load() - kv.second->block_range->GetStartLBA()) * lba_size;
+			available_space -= size;
 		}
 	}
 

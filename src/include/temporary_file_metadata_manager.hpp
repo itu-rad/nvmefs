@@ -38,7 +38,7 @@ public:
 
 	bool FileExists(const string &filename);
 
-	idx_t GetFileSize(const string &filename);
+	idx_t GetFileSizeLBA(const string &filename);
 
 	void ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback);
 

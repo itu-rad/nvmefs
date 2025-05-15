@@ -13,7 +13,10 @@ inline unique_ptr<TempFileMetadata> CreateTempFileMetadata(const string &filenam
 
 	// Extract the first number
 	std::string block_size_str = filename.substr(first_number_start, first_number_end - first_number_start);
-	idx_t block_size = std::stoi(block_size_str);
+	idx_t block_size = 262144;
+	if (block_size_str != "DEFAULT") {
+		block_size = std::stoi(block_size_str);
+	}
 
 	// Find the position of the second number
 	size_t file_index_start = first_number_end + 1;               // Start after the '-'

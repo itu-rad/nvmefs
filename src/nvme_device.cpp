@@ -53,7 +53,9 @@ idx_t NvmeDevice::Write(void *buffer, const CmdContext &context) {
 
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
-	xnvme_cmd_ctx xnvme_ctx = PrepareWriteContext(plid_idx);
+	xnvme_cmd_ctx xnvme_ctx = xnvme_cmd_ctx_from_dev(device);
+
+	PrepareIOCmdContext(&xnvme_ctx, context, plid_idx, 2, true);
 
 	int err = xnvme_nvm_write(&xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 	if (err) {
@@ -80,7 +82,9 @@ idx_t NvmeDevice::Read(void *buffer, const CmdContext &context) {
 
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
-	xnvme_cmd_ctx xnvme_ctx = PrepareReadContext(plid_idx);
+	xnvme_cmd_ctx xnvme_ctx = xnvme_cmd_ctx_from_dev(device);
+
+	PrepareIOCmdContext(&xnvme_ctx, context, plid_idx, 0, false);
 
 	int err = xnvme_nvm_read(&xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 	if (err) {
@@ -128,46 +132,6 @@ DeviceGeometry NvmeDevice::LoadDeviceGeometry() {
 	geometry.lba_count = nsgeo->nsze;
 
 	return geometry;
-}
-
-xnvme_cmd_ctx NvmeDevice::PrepareWriteContext(idx_t plid_idx) {
-	xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
-	uint32_t nsid = xnvme_dev_get_nsid(device);
-
-	// Retrieve information about recliam unit handles
-	struct xnvme_spec_ruhs *ruhs = nullptr;
-	// TODO: verify this calculation!!
-	uint32_t ruhs_nbytes = sizeof(*ruhs) + plhdls + sizeof(struct xnvme_spec_ruhs_desc);
-	ruhs = (struct xnvme_spec_ruhs *)xnvme_buf_alloc(device, ruhs_nbytes);
-	memset(ruhs, 0, ruhs_nbytes);
-	xnvme_nvm_mgmt_recv(&ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
-
-	uint16_t phid = ruhs->desc[plid_idx].pi;
-	ctx.cmd.common.cdw13 = phid << 16;
-
-	xnvme_buf_free(device, ruhs);
-
-	return ctx;
-}
-
-xnvme_cmd_ctx NvmeDevice::PrepareReadContext(idx_t plid_idx) {
-	xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
-	uint32_t nsid = xnvme_dev_get_nsid(device);
-
-	// Retrieve information about recliam unit handles
-	struct xnvme_spec_ruhs *ruhs = nullptr;
-	// TODO: verify this calculation!!
-	uint32_t ruhs_nbytes = sizeof(*ruhs) + plhdls + sizeof(struct xnvme_spec_ruhs_desc);
-	ruhs = (struct xnvme_spec_ruhs *)xnvme_buf_alloc(device, ruhs_nbytes);
-	memset(ruhs, 0, ruhs_nbytes);
-	xnvme_nvm_mgmt_recv(&ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
-
-	uint16_t phid = ruhs->desc[plid_idx].pi;
-	ctx.cmd.common.cdw13 = phid << 16;
-
-	xnvme_buf_free(device, ruhs);
-
-	return ctx;
 }
 
 void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
@@ -229,6 +193,8 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	std::future_status status;
 	std::chrono::milliseconds interval = std::chrono::milliseconds(0);
 
+	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, 0, false);
+
 	int err = xnvme_nvm_read(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 	if (err) {
 		xnvme_cli_perr("Could not submit command to queue with xnvme_nvme_read(): ", err);
@@ -281,6 +247,8 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	std::future_status status;
 	std::chrono::milliseconds interval = std::chrono::milliseconds(0);
 
+	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, 2, true);
+
 	int err = xnvme_nvm_write(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 	if (err) {
 		xnvme_cli_perr("Could not submit command to queue with xnvme_nvme_write(): ", err);
@@ -297,7 +265,8 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	return ctx.nr_lbas;
 }
 
-void NvmeDevice::PrepareAsyncReadContext(xnvme_cmd_ctx &ctx, idx_t plid_idx) {
+void NvmeDevice::PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype, bool write) {
+	const NvmeCmdContext &ctx = static_cast<const NvmeCmdContext &>(cmd_ctx);
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 
 	// Retrieve information about recliam unit handles
@@ -306,27 +275,21 @@ void NvmeDevice::PrepareAsyncReadContext(xnvme_cmd_ctx &ctx, idx_t plid_idx) {
 	uint32_t ruhs_nbytes = sizeof(*ruhs) + plhdls + sizeof(struct xnvme_spec_ruhs_desc);
 	ruhs = (struct xnvme_spec_ruhs *)xnvme_buf_alloc(device, ruhs_nbytes);
 	memset(ruhs, 0, ruhs_nbytes);
-	xnvme_nvm_mgmt_recv(&ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
+	xnvme_nvm_mgmt_recv(ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
 
-	uint16_t phid = ruhs->desc[plid_idx].pi;
-	ctx.cmd.common.cdw13 = phid << 16;
+	// Specified by the command set specification:
+	// https://nvmexpress.org/wp-content/uploads/NVM-Express-NVM-Command-Set-Specification-Revision-1.1-2024.08.05-Ratified.pdf
+	// cdw12 specifies data placement (dtype) and number of lbas to write/read (0 indexed)
+	// cdw13 hold placement handle id in bit range 16-31
+	uint16_t nr_lbas = cmd_ctx.nr_lbas - 1;
 
-	xnvme_buf_free(device, ruhs);
-}
+	ctx->cmd.common.cdw12 = nr_lbas;
+	if (write) {
+		ctx->cmd.common.cdw12 |= dtype << 20;
 
-void NvmeDevice::PrepareAsyncWriteContext(xnvme_cmd_ctx &ctx, idx_t plid_idx) {
-	uint32_t nsid = xnvme_dev_get_nsid(device);
-
-	// Retrieve information about recliam unit handles
-	struct xnvme_spec_ruhs *ruhs = nullptr;
-	// TODO: verify this calculation!!
-	uint32_t ruhs_nbytes = sizeof(*ruhs) + plhdls + sizeof(struct xnvme_spec_ruhs_desc);
-	ruhs = (struct xnvme_spec_ruhs *)xnvme_buf_alloc(device, ruhs_nbytes);
-	memset(ruhs, 0, ruhs_nbytes);
-	xnvme_nvm_mgmt_recv(&ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
-
-	uint16_t phid = ruhs->desc[plid_idx].pi;
-	ctx.cmd.common.cdw13 = phid << 16;
+		uint16_t phid = ruhs->desc[plid_idx].pi;
+		ctx->cmd.common.cdw13 = phid << 16;
+	}
 
 	xnvme_buf_free(device, ruhs);
 }

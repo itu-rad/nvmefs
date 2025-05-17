@@ -90,9 +90,7 @@ private:
 	idx_t ReadAsync(void *buffer, const CmdContext &context);
 	idx_t WriteAsync(void *buffer, const CmdContext &context);
 
-	void PrepareAsyncReadContext(xnvme_cmd_ctx &ctx, idx_t plid_idx);
-	void PrepareAsyncWriteContext(xnvme_cmd_ctx &ctx, idx_t plid_idx);
-
+	void PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype, bool write);
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;

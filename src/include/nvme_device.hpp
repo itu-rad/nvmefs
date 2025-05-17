@@ -72,16 +72,6 @@ private:
 	/// @return The device geometry
 	DeviceGeometry LoadDeviceGeometry();
 
-	/// @brief Prepares a xnvme command context for issuing a write agasint the device
-	/// @param plid_idx The index of the placement identifier to use
-	/// @return A xnvme command context
-	xnvme_cmd_ctx PrepareWriteContext(idx_t plid_idx);
-
-	/// @brief Prepares a xnvme command context for issuing a read agasint the device
-	/// @param plid_idx The index of the placement identifier to use
-	/// @return A xnvme command context
-	xnvme_cmd_ctx PrepareReadContext(idx_t plid_idx);
-
 	/// @brief Specifies the backend and sync/async used for the device
 	/// @param opts xNVMe options
 	void PrepareOpts(xnvme_opts &opts);

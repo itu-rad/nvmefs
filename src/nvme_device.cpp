@@ -266,7 +266,7 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 }
 
 void NvmeDevice::PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype, bool write) {
-	const NvmeCmdContext &ctx = static_cast<const NvmeCmdContext &>(cmd_ctx);
+	const NvmeCmdContext &nvme_cmd_ctx = static_cast<const NvmeCmdContext &>(cmd_ctx);
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 
 	// Retrieve information about recliam unit handles
@@ -281,7 +281,7 @@ void NvmeDevice::PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_c
 	// https://nvmexpress.org/wp-content/uploads/NVM-Express-NVM-Command-Set-Specification-Revision-1.1-2024.08.05-Ratified.pdf
 	// cdw12 specifies data placement (dtype) and number of lbas to write/read (0 indexed)
 	// cdw13 hold placement handle id in bit range 16-31
-	uint16_t nr_lbas = cmd_ctx.nr_lbas - 1;
+	uint16_t nr_lbas = nvme_cmd_ctx.nr_lbas - 1;
 
 	ctx->cmd.common.cdw12 = nr_lbas;
 	if (write) {

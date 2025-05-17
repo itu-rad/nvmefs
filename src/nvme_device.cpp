@@ -55,7 +55,7 @@ idx_t NvmeDevice::Write(void *buffer, const CmdContext &context) {
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 	xnvme_cmd_ctx xnvme_ctx = xnvme_cmd_ctx_from_dev(device);
 
-	PrepareIOCmdContext(&xnvme_ctx, context, plid_idx, 2, true);
+	PrepareIOCmdContext(&xnvme_ctx, context, plid_idx, DATA_PLACEMENT_MODE, true);
 
 	int err = xnvme_nvm_write(&xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 	if (err) {
@@ -184,6 +184,7 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	}
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
+	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, 0, false);
 
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();
@@ -192,8 +193,6 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 
 	std::future_status status;
 	std::chrono::milliseconds interval = std::chrono::milliseconds(0);
-
-	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, 0, false);
 
 	int err = xnvme_nvm_read(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 	if (err) {
@@ -238,6 +237,7 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	}
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
+	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, DATA_PLACEMENT_MODE, true);
 
 	std::promise<void> cb_notify;
 	std::future<void> fut = cb_notify.get_future();
@@ -246,8 +246,6 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 
 	std::future_status status;
 	std::chrono::milliseconds interval = std::chrono::milliseconds(0);
-
-	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, 2, true);
 
 	int err = xnvme_nvm_write(xnvme_ctx, nsid, ctx.start_lba, ctx.nr_lbas - 1, dev_buffer, nullptr);
 	if (err) {
@@ -268,14 +266,14 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 void NvmeDevice::PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype, bool write) {
 	const NvmeCmdContext &nvme_cmd_ctx = static_cast<const NvmeCmdContext &>(cmd_ctx);
 	uint32_t nsid = xnvme_dev_get_nsid(device);
+	xnvme_cmd_ctx xnvme_ctx = xnvme_cmd_ctx_from_dev(device);
 
 	// Retrieve information about recliam unit handles
 	struct xnvme_spec_ruhs *ruhs = nullptr;
-	// TODO: verify this calculation!!
-	uint32_t ruhs_nbytes = sizeof(*ruhs) + plhdls + sizeof(struct xnvme_spec_ruhs_desc);
+	uint32_t ruhs_nbytes = sizeof(*ruhs) + plhdls * sizeof(struct xnvme_spec_ruhs_desc);
 	ruhs = (struct xnvme_spec_ruhs *)xnvme_buf_alloc(device, ruhs_nbytes);
 	memset(ruhs, 0, ruhs_nbytes);
-	xnvme_nvm_mgmt_recv(ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
+	xnvme_nvm_mgmt_recv(&xnvme_ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
 
 	// Specified by the command set specification:
 	// https://nvmexpress.org/wp-content/uploads/NVM-Express-NVM-Command-Set-Specification-Revision-1.1-2024.08.05-Ratified.pdf

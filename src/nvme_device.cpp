@@ -1,7 +1,7 @@
 #include "nvme_device.hpp"
 
 namespace duckdb {
-
+thread_local idx_t NvmeDevice::index = -1;
 NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend,
                        const bool async, const idx_t max_threads)
     : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async), max_threads(max_threads) {
@@ -179,10 +179,8 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-
-	thread_local idx_t index = (global_thread_id++) % max_threads;
-
 	std::call_once(init_queue_flags[index], [&](){
+		GetThreadIndex();
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
@@ -233,10 +231,10 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	idx_t thread_id = TaskScheduler::GetEstimatedCPUId();
-	idx_t index = thread_id % max_threads;
+	thread_local idx_t index = (thread_id_counter++) % max_threads;
 
 	std::call_once(init_queue_flags[index], [&](){
+		GetThreadIndex();
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
@@ -328,6 +326,12 @@ void NvmeDevice::InitializePlacementHandles() {
 
 	for(int i = 0; i < max_placement_handles; ++i) {
 		placement_handlers.emplace_back(ruhs->desc[i].pi);
+	}
+}
+
+void NvmeDevice::GetThreadIndex() {
+	if(index == -1) {
+		index = thread_id_counter++ % max_threads;
 	}
 }
 } // namespace duckdb

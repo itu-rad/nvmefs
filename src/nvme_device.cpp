@@ -26,6 +26,7 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 		InitializePlacementHandles();
 	}
 
+	GetThreadIndex();
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 	geometry = LoadDeviceGeometry();
 }
@@ -180,7 +181,6 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
 	std::call_once(init_queue_flags[index], [&](){
-		GetThreadIndex();
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
@@ -231,10 +231,7 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	thread_local idx_t index = (thread_id_counter++) % max_threads;
-
 	std::call_once(init_queue_flags[index], [&](){
-		GetThreadIndex();
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);

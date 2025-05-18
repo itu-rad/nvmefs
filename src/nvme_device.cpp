@@ -21,6 +21,10 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 
 	fdp = CheckFDP();
 
+	if (fdp) {
+		InitializePlacementHandles();
+	}
+
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 	geometry = LoadDeviceGeometry();
 }
@@ -267,15 +271,6 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 
 void NvmeDevice::PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype, bool write) {
 	const NvmeCmdContext &nvme_cmd_ctx = static_cast<const NvmeCmdContext &>(cmd_ctx);
-	uint32_t nsid = xnvme_dev_get_nsid(device);
-	xnvme_cmd_ctx xnvme_ctx = xnvme_cmd_ctx_from_dev(device);
-
-	// Retrieve information about recliam unit handles
-	struct xnvme_spec_ruhs *ruhs = nullptr;
-	uint32_t ruhs_nbytes = sizeof(*ruhs) + plhdls * sizeof(struct xnvme_spec_ruhs_desc);
-	ruhs = (struct xnvme_spec_ruhs *)xnvme_buf_alloc(device, ruhs_nbytes);
-	memset(ruhs, 0, ruhs_nbytes);
-	xnvme_nvm_mgmt_recv(&xnvme_ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
 
 	// Specified by the command set specification:
 	// https://nvmexpress.org/wp-content/uploads/NVM-Express-NVM-Command-Set-Specification-Revision-1.1-2024.08.05-Ratified.pdf
@@ -284,14 +279,12 @@ void NvmeDevice::PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_c
 	uint16_t nr_lbas = nvme_cmd_ctx.nr_lbas - 1;
 
 	ctx->cmd.common.cdw12 = nr_lbas;
-	if (write) {
+	if (write && fdp) {
 		ctx->cmd.common.cdw12 |= dtype << 20;
 
-		uint16_t phid = ruhs->desc[plid_idx].pi;
+		uint16_t phid = placement_handlers[plid_idx];
 		ctx->cmd.common.cdw13 = phid << 16;
 	}
-
-	xnvme_buf_free(device, ruhs);
 }
 
 bool NvmeDevice::CheckFDP() {
@@ -311,5 +304,27 @@ bool NvmeDevice::CheckFDP() {
 	}
 	// The first bit of cdw0 in the completion entry specifies if fdp is enabled
 	return ctx.cpl.cdw0 & 0x1;
+}
+
+void NvmeDevice::InitializePlacementHandles() {
+	uint32_t nsid = xnvme_dev_get_nsid(device);
+	xnvme_cmd_ctx xnvme_ctx = xnvme_cmd_ctx_from_dev(device);
+
+	// Retrieve number of RUHs on the device
+	struct xnvme_spec_ruhs header;
+	uint32_t header_bytes = sizeof(header);
+	xnvme_nvm_mgmt_recv(&xnvme_ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS,0, &header, header_bytes);
+	uint16_t max_placement_handles = header.nruhsd-1;
+
+	// Retrieve information about recliam unit handles
+	struct xnvme_spec_ruhs *ruhs = nullptr;
+	uint32_t ruhs_nbytes = sizeof(*ruhs) + max_placement_handles * sizeof(struct xnvme_spec_ruhs_desc);
+	ruhs = (struct xnvme_spec_ruhs *)xnvme_buf_alloc(device, ruhs_nbytes);
+	memset(ruhs, 0, ruhs_nbytes);
+	xnvme_nvm_mgmt_recv(&xnvme_ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
+
+	for(int i = 0; i < max_placement_handles; ++i) {
+		placement_handlers.emplace_back(ruhs->desc[i].pi);
+	}
 }
 } // namespace duckdb

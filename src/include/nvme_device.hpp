@@ -83,9 +83,11 @@ private:
 
 	void PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype, bool write);
 	bool CheckFDP();
+	void InitializePlacementHandles();
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
+	vector<uint16_t> placement_handlers;
 	xnvme_dev *device;
 	const string dev_path;
 	const idx_t plhdls;

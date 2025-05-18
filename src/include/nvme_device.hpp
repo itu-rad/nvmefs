@@ -97,7 +97,7 @@ private:
 	bool fdp;
 	vector<xnvme_queue*> queues;
 	const idx_t max_threads;
-	static std::recursive_mutex init_lock;
+	vector<std::once_flag> init_queue_flags;
 };
 
 } // namespace duckdb

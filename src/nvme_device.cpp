@@ -2,8 +2,6 @@
 
 namespace duckdb {
 
-std::recursive_mutex NvmeDevice::init_lock;
-
 NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend,
                        const bool async, const idx_t max_threads)
     : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async), max_threads(max_threads) {
@@ -18,6 +16,7 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 	// Initialize the xnvme queue for asynchronous IO
 	if (async) {
 		queues = vector<xnvme_queue*>(max_threads, nullptr);
+		init_queue_flags = vector<std::once_flag>(max_threads);
 		// Set the callback function for completed commands. No callback arguments, hence last argument equal to NULL
 	}
 
@@ -182,16 +181,15 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 
 	idx_t thread_id = TaskScheduler::GetEstimatedCPUId();
 	idx_t index = thread_id % max_threads;
-	xnvme_queue *queue = queues[index];
-	if (!queue) {
-		init_lock.lock();
+
+	std::call_once(init_queue_flags[index], [&](){
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
-		queue = queues[index];
-		init_lock.unlock();
-	}
+	});
+
+	xnvme_queue *queue = queues[index];
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
 	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, 0, false);
@@ -237,16 +235,15 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 
 	idx_t thread_id = TaskScheduler::GetEstimatedCPUId();
 	idx_t index = thread_id % max_threads;
-	xnvme_queue *queue = queues[index];
-	if (!queue) {
-		init_lock.lock();
+
+	std::call_once(init_queue_flags[index], [&](){
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
-		queue = queues[index];
-		init_lock.unlock();
-	}
+	});
+
+	xnvme_queue *queue = queues[index];
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
 	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, DATA_PLACEMENT_MODE, true);

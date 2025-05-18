@@ -78,11 +78,9 @@ NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device)
 }
 
 NvmeFileSystem::~NvmeFileSystem() {
-	if (!metadata) {
-		return;
+	if(metadata) {
+		WriteMetadata(*metadata);
 	}
-
-	WriteMetadata(*metadata);
 }
 
 unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlags flags,

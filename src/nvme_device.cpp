@@ -19,6 +19,8 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 		// Set the callback function for completed commands. No callback arguments, hence last argument equal to NULL
 	}
 
+	fdp = CheckFDP();
+
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 	geometry = LoadDeviceGeometry();
 }
@@ -290,5 +292,24 @@ void NvmeDevice::PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_c
 	}
 
 	xnvme_buf_free(device, ruhs);
+}
+
+bool NvmeDevice::CheckFDP() {
+	// Create admin cmd to get feature
+	xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
+	uint32_t nsid = xnvme_dev_get_nsid(device);
+	uint8_t feat_id = 0x1D; // identifier of fdp
+	uint8_t sel = 0x0; // look up current value
+
+	xnvme_prep_adm_gfeat(&ctx, nsid, feat_id, sel);
+	//ctx.cmd.gfeat.cdw11 = 0x1;
+
+	int err = xnvme_cmd_pass_admin(&ctx, NULL, 0x0, NULL, 0x0);
+	if (err) {
+		xnvme_cli_perr("xnvme_cmd_pass_admin()", err);
+		xnvme_cmd_ctx_pr(&ctx, XNVME_PR_DEF);
+	}
+	// The first bit of cdw0 in the completion entry specifies if fdp is enabled
+	return ctx.cpl.cdw0 & 0x1;
 }
 } // namespace duckdb

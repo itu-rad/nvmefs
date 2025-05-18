@@ -82,6 +82,7 @@ private:
 	idx_t WriteAsync(void *buffer, const CmdContext &context);
 
 	void PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype, bool write);
+	bool CheckFDP();
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
@@ -91,6 +92,7 @@ private:
 	DeviceGeometry geometry;
 	const string backend;
 	const bool async;
+	bool fdp;
 	vector<xnvme_queue*> queues;
 	const idx_t max_threads;
 };

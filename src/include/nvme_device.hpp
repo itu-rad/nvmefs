@@ -97,6 +97,7 @@ private:
 	bool fdp;
 	vector<xnvme_queue*> queues;
 	const idx_t max_threads;
+	atomic<idx_t> global_thread_id;
 	vector<std::once_flag> init_queue_flags;
 };
 

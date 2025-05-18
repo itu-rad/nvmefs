@@ -2,6 +2,8 @@
 
 namespace duckdb {
 
+std::recursive_mutex NvmeDevice::init_lock;
+
 NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend,
                        const bool async, const idx_t max_threads)
     : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async), max_threads(max_threads) {
@@ -182,11 +184,13 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	idx_t index = thread_id % max_threads;
 	xnvme_queue *queue = queues[index];
 	if (!queue) {
+		init_lock.lock();
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
 		queue = queues[index];
+		init_lock.unlock();
 	}
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
@@ -235,11 +239,13 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	idx_t index = thread_id % max_threads;
 	xnvme_queue *queue = queues[index];
 	if (!queue) {
+		init_lock.lock();
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
 		queue = queues[index];
+		init_lock.unlock();
 	}
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);

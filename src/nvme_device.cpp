@@ -333,6 +333,7 @@ void NvmeDevice::InitializePlacementHandles() {
 idx_t NvmeDevice::GetThreadIndex() {
 	if (!index.IsValid()) {
 		index = thread_id_counter++ % max_threads;
+		printf("Creating Thread index: %d\n", index.GetIndex());
 	}
 
 	return index.GetIndex();

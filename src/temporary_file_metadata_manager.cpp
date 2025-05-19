@@ -74,6 +74,7 @@ void TemporaryFileMetadataManager::CreateFile(const string &filename) {
 }
 
 idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_location) {
+	lock_guard<std::mutex> lock(alloc_lock);
 	// We assume that the file exists
 	TempFileMetadata &tfmeta = *file_to_temp_meta[filename];
 	printf("Getting LBA for file %s, lba_location %llu\n", filename.c_str(), lba_location);
@@ -82,6 +83,7 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_loc
 }
 
 void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t lba_location) {
+	lock_guard<std::mutex> lock(alloc_lock);
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
 	// Use atomic compare-and-swap to update lba_location if the new location is larger

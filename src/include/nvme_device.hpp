@@ -102,7 +102,6 @@ private:
 	const idx_t max_threads;
 	atomic<idx_t> thread_id_counter;
 	static thread_local optional_idx index;
-	vector<std::once_flag> init_queue_flags;
 };
 
 } // namespace duckdb

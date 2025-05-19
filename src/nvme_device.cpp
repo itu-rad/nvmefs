@@ -16,7 +16,6 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 	// Initialize the xnvme queue for asynchronous IO
 	if (async) {
 		queues = vector<xnvme_queue *>(max_threads, nullptr);
-		init_queue_flags = vector<std::once_flag>(max_threads);
 		// Set the callback function for completed commands. No callback arguments, hence last argument equal to NULL
 	}
 
@@ -182,14 +181,16 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 
 	idx_t thread_index = GetThreadIndex();
 
-	std::call_once(init_queue_flags[thread_index], [&]() {
+	xnvme_queue *queue = queues[thread_index];
+
+	if (!queue) {
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[thread_index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
-	});
 
-	xnvme_queue *queue = queues[thread_index];
+		queue = queues[thread_index];
+	}
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
 	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, 0, false);
@@ -235,14 +236,15 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 
 	idx_t thread_index = GetThreadIndex();
 
-	std::call_once(init_queue_flags[thread_index], [&]() {
+	xnvme_queue *queue = queues[thread_index];
+	if (!queue) {
 		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[thread_index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
-	});
 
-	xnvme_queue *queue = queues[thread_index];
+		queue = queues[thread_index];
+	}
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
 	PrepareIOCmdContext(xnvme_ctx, context, plid_idx, DATA_PLACEMENT_MODE, true);

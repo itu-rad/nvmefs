@@ -331,6 +331,8 @@ void NvmeDevice::InitializePlacementHandles() {
 	for (int i = 0; i < max_placement_handles; ++i) {
 		placement_handlers.emplace_back(ruhs->desc[i].pi);
 	}
+
+	xnvme_buf_free(device, ruhs);
 }
 
 idx_t NvmeDevice::GetThreadIndex() {

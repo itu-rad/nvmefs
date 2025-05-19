@@ -1,6 +1,7 @@
 #include "nvme_device.hpp"
 
 namespace duckdb {
+thread_local optional_idx NvmeDevice::index = optional_idx();
 NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend,
                        const bool async, const idx_t max_threads)
     : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async), max_threads(max_threads) {

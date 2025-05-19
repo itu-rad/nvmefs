@@ -1,6 +1,7 @@
 #pragma once
 
 #include "duckdb/common/map.hpp"
+#include "duckdb/common/optional_idx.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "device.hpp"
 #include <libxnvme.h>

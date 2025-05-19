@@ -1,6 +1,7 @@
 #pragma once
 
 #include "duckdb/common/map.hpp"
+#include "duckdb/common/optional_idx.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "device.hpp"
 #include <libxnvme.h>
@@ -22,7 +23,8 @@ struct NvmeCmdContext : public CmdContext {
 
 class NvmeDevice : public Device {
 public:
-	NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend, const bool async, const idx_t max_threads);
+	NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend, const bool async,
+	           const idx_t max_threads);
 	~NvmeDevice();
 
 	/// @brief Writes data from the input buffer to the device at the specified LBA position
@@ -84,6 +86,7 @@ private:
 	void PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype, bool write);
 	bool CheckFDP();
 	void InitializePlacementHandles();
+	idx_t GetThreadIndex();
 
 private:
 	map<string, uint8_t> allocated_placement_identifiers;
@@ -95,9 +98,10 @@ private:
 	const string backend;
 	const bool async;
 	bool fdp;
-	vector<xnvme_queue*> queues;
+	vector<xnvme_queue *> queues;
 	const idx_t max_threads;
-	static std::recursive_mutex init_lock;
+	atomic<idx_t> thread_id_counter;
+	static thread_local optional_idx index;
 };
 
 } // namespace duckdb

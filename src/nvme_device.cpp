@@ -1,9 +1,7 @@
 #include "nvme_device.hpp"
 
 namespace duckdb {
-
-std::recursive_mutex NvmeDevice::init_lock;
-
+thread_local optional_idx NvmeDevice::index = optional_idx();
 NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend,
                        const bool async, const idx_t max_threads)
     : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async), max_threads(max_threads) {
@@ -17,7 +15,7 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 
 	// Initialize the xnvme queue for asynchronous IO
 	if (async) {
-		queues = vector<xnvme_queue*>(max_threads, nullptr);
+		queues = vector<xnvme_queue *>(max_threads, nullptr);
 		// Set the callback function for completed commands. No callback arguments, hence last argument equal to NULL
 	}
 
@@ -27,13 +25,14 @@ NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles,
 		InitializePlacementHandles();
 	}
 
+	GetThreadIndex();
 	allocated_placement_identifiers["nvmefs:///tmp"] = 1;
 	geometry = LoadDeviceGeometry();
 }
 
 NvmeDevice::~NvmeDevice() {
 	if (async) {
-		for(const auto &queue : queues){
+		for (const auto &queue : queues) {
 			xnvme_queue_term(queue);
 		}
 	}
@@ -155,7 +154,7 @@ void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
 
 void NvmeDevice::CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args) {
 	// Cast callback args into defined callback struct
-	std::promise<void> *notifier = (std::promise<void> *) cb_args;
+	std::promise<void> *notifier = (std::promise<void> *)cb_args;
 
 	// Check status
 	if (xnvme_cmd_ctx_cpl_status(ctx)) {
@@ -180,17 +179,17 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	idx_t thread_id = TaskScheduler::GetEstimatedCPUId();
-	idx_t index = thread_id % max_threads;
-	xnvme_queue *queue = queues[index];
+	idx_t thread_index = GetThreadIndex();
+
+	xnvme_queue *queue = queues[thread_index];
+
 	if (!queue) {
-		init_lock.lock();
-		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
+		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[thread_index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
-		queue = queues[index];
-		init_lock.unlock();
+
+		queue = queues[thread_index];
 	}
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
@@ -235,17 +234,16 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t plid_idx = GetPlacementIdentifierOrDefault(ctx.filepath);
 
-	idx_t thread_id = TaskScheduler::GetEstimatedCPUId();
-	idx_t index = thread_id % max_threads;
-	xnvme_queue *queue = queues[index];
+	idx_t thread_index = GetThreadIndex();
+
+	xnvme_queue *queue = queues[thread_index];
 	if (!queue) {
-		init_lock.lock();
-		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[index]);
+		int err = xnvme_queue_init(device, XNVME_QUEUE_DEPTH, 0, &queues[thread_index]);
 		if (err) {
 			xnvme_cli_perr("Unable to create an queue for asynchronous IO", err);
 		}
-		queue = queues[index];
-		init_lock.unlock();
+
+		queue = queues[thread_index];
 	}
 
 	xnvme_cmd_ctx *xnvme_ctx = xnvme_queue_get_cmd_ctx(queue);
@@ -275,7 +273,8 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	return ctx.nr_lbas;
 }
 
-void NvmeDevice::PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype, bool write) {
+void NvmeDevice::PrepareIOCmdContext(xnvme_cmd_ctx *ctx, const CmdContext &cmd_ctx, idx_t plid_idx, idx_t dtype,
+                                     bool write) {
 	const NvmeCmdContext &nvme_cmd_ctx = static_cast<const NvmeCmdContext &>(cmd_ctx);
 
 	// Specified by the command set specification:
@@ -298,10 +297,10 @@ bool NvmeDevice::CheckFDP() {
 	xnvme_cmd_ctx ctx = xnvme_cmd_ctx_from_dev(device);
 	uint32_t nsid = xnvme_dev_get_nsid(device);
 	uint8_t feat_id = 0x1D; // identifier of fdp
-	uint8_t sel = 0x0; // look up current value
+	uint8_t sel = 0x0;      // look up current value
 
 	xnvme_prep_adm_gfeat(&ctx, nsid, feat_id, sel);
-	//ctx.cmd.gfeat.cdw11 = 0x1;
+	// ctx.cmd.gfeat.cdw11 = 0x1;
 
 	int err = xnvme_cmd_pass_admin(&ctx, NULL, 0x0, NULL, 0x0);
 	if (err) {
@@ -319,8 +318,8 @@ void NvmeDevice::InitializePlacementHandles() {
 	// Retrieve number of RUHs on the device
 	struct xnvme_spec_ruhs header;
 	uint32_t header_bytes = sizeof(header);
-	xnvme_nvm_mgmt_recv(&xnvme_ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS,0, &header, header_bytes);
-	uint16_t max_placement_handles = header.nruhsd-1;
+	xnvme_nvm_mgmt_recv(&xnvme_ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, &header, header_bytes);
+	uint16_t max_placement_handles = header.nruhsd - 1;
 
 	// Retrieve information about recliam unit handles
 	struct xnvme_spec_ruhs *ruhs = nullptr;
@@ -329,8 +328,16 @@ void NvmeDevice::InitializePlacementHandles() {
 	memset(ruhs, 0, ruhs_nbytes);
 	xnvme_nvm_mgmt_recv(&xnvme_ctx, nsid, XNVME_SPEC_IO_MGMT_RECV_RUHS, 0, ruhs, ruhs_nbytes);
 
-	for(int i = 0; i < max_placement_handles; ++i) {
+	for (int i = 0; i < max_placement_handles; ++i) {
 		placement_handlers.emplace_back(ruhs->desc[i].pi);
 	}
+}
+
+idx_t NvmeDevice::GetThreadIndex() {
+	if (!index.IsValid()) {
+		index = thread_id_counter++ % max_threads;
+	}
+
+	return index.GetIndex();
 }
 } // namespace duckdb

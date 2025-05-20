@@ -80,10 +80,12 @@ void TemporaryFileMetadataManager::CreateFile(const string &filename) {
 
 idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_location) {
 	lock_guard<std::mutex> lock(alloc_lock);
+	D_ASSERT(file_to_temp_meta.count(filename) > 0);
+
 	// We assume that the file exists
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 	idx_t location = tfmeta->block_range->GetStartLBA() + lba_location;
-
+	D_ASSERT(lba_location < (tfmeta->block_range->GetEndLBA() - tfmeta->block_range->GetStartLBA()));
 	// printf("Getting LBA for file %s, lba_location %llu\n", filename.c_str(), location);
 
 	return location;
@@ -91,6 +93,7 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_loc
 
 void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t lba_location) {
 	lock_guard<std::mutex> lock(alloc_lock);
+	D_ASSERT(file_to_temp_meta.count(filename) > 0);
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
 	// Use atomic compare-and-swap to update lba_location if the new location is larger
@@ -105,11 +108,17 @@ void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t
 }
 
 void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t new_size) {
+	D_ASSERT(file_to_temp_meta.count(filename) > 0);
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
+
+	D_ASSERT(tfmeta->block_range != nullptr);
+	D_ASSERT(tfmeta->is_active.load());
 
 	idx_t new_lba_location = tfmeta->block_range->GetStartLBA() + (new_size / lba_size);
 	printf("Truncating file %s to size %llu, blocks left with new size %llu\n", filename.c_str(), new_lba_location,
 	       (new_size / lba_size));
+	D_ASSERT(new_lba_location >= tfmeta->block_range->GetStartLBA());
+	D_ASSERT(new_lba_location <= tfmeta->block_range->GetEndLBA());
 
 	idx_t current_lba = tfmeta->lba_location.load();
 	while (current_lba > new_lba_location) {
@@ -127,6 +136,7 @@ void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
 	if (!file_to_temp_meta.count(filename)) {
 		return;
 	}
+	printf("Deleting file %s\n", filename.c_str());
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
@@ -154,11 +164,13 @@ idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
 
 void TemporaryFileMetadataManager::Clear() {
 	alloc_lock.lock();
+	printf("Clearing all temporary files\n");
 	for (auto &kv : file_to_temp_meta) {
 		block_manager->FreeBlock(kv.second->block_range);
 	}
 
 	file_to_temp_meta.clear();
+	D_ASSERT(file_to_temp_meta.empty());
 	alloc_lock.unlock();
 
 } // namespace duckdb

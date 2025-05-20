@@ -142,6 +142,10 @@ DeviceGeometry NvmeDevice::LoadDeviceGeometry() {
 }
 
 void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
+	if (StringUtil::Equals(this->backend.data(), "spdk")) {
+        opts.be = "spdk";
+    }
+
 	if (this->async) {
 		opts.async = this->backend.data();
 		if (StringUtil::Equals(this->backend.data(), "io_uring_cmd")) {

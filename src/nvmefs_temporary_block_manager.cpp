@@ -77,6 +77,8 @@ TemporaryBlock *NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
 			// Split the block if it is larger than the requested size
 			if (block->lba_amount > lba_amount) {
 				block = SplitBlock(block, lba_amount);
+			} else {
+				printf("Not enought space in the block, splitting it\n");
 			}
 
 			break; // If we are in here we have found a block
@@ -89,6 +91,8 @@ TemporaryBlock *NvmeTemporaryBlockManager::AllocateBlock(idx_t lba_amount) {
 
 	// Return the block
 	block->is_free = false; // Mark the block as used
+	printf("Allocated block size %llu, requested size %llu (END LBA %llu)\n", block->lba_amount, lba_amount,
+	       allocated_end_lba);
 
 	return block;
 }

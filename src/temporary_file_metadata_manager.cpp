@@ -126,6 +126,7 @@ void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t ne
 }
 
 void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
+	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 
 	if (!file_to_temp_meta.count(filename)) {
 		return;
@@ -134,9 +135,10 @@ void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 	boost::unique_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
 
+	// If file exists, soft delete it
 	if (tfmeta) {
-		tfmeta->is_active.store(false);                                 // Soft delete the file
-		tfmeta->lba_location.store(tfmeta->block_range->GetStartLBA()); // Reset the lba location
+		tfmeta->is_active.store(false);
+		tfmeta->lba_location.store(tfmeta->block_range->GetStartLBA());
 	}
 }
 

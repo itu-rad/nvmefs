@@ -67,6 +67,8 @@ void TemporaryFileMetadataManager::CreateFile(const string &filename) {
 	alloc_lock.lock();
 	tfmeta->block_range = block_manager->AllocateBlock((tfmeta->nr_blocks * tfmeta->block_size) / lba_size);
 	alloc_lock.unlock();
+	printf("Allocated block range for file %s, start lba %llu, end lba %llu\n", filename.c_str(),
+	       tfmeta->block_range->GetStartLBA(), tfmeta->block_range->GetEndLBA());
 
 	tfmeta->lba_location.store(tfmeta->block_range->GetStartLBA());
 	tfmeta->is_active.store(true);
@@ -77,9 +79,11 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_loc
 	lock_guard<std::mutex> lock(alloc_lock);
 	// We assume that the file exists
 	TempFileMetadata &tfmeta = *file_to_temp_meta[filename];
-	printf("Getting LBA for file %s, lba_location %llu\n", filename.c_str(), lba_location);
+	idx_t location = tfmeta.block_range->GetStartLBA() + lba_location;
 
-	return tfmeta.block_range->GetStartLBA() + lba_location;
+	printf("Getting LBA for file %s, lba_location %llu\n", filename.c_str(), location);
+
+	return location;
 }
 
 void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t lba_location) {
@@ -91,6 +95,7 @@ void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t
 	while (lba_location > current_lba) {
 		// Attempt to update the lba_location atomically
 		if (tfmeta->lba_location.compare_exchange_weak(current_lba, lba_location)) {
+			printf("Moved LBA location for file %s to %llu\n", filename.c_str(), lba_location);
 			return; // Update successful
 		}
 	}
@@ -107,7 +112,7 @@ void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t ne
 
 		// Attempt to update the lba_location atomically
 		if (tfmeta->lba_location.compare_exchange_weak(current_lba, new_lba_location)) {
-			printf("Truncated file %s to size %llu\n", filename.c_str(), new_size);
+			printf("Truncated file %s to size %llu\n", filename.c_str(), new_lba_location);
 			return; // Update successful
 		}
 	}

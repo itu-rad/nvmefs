@@ -81,8 +81,8 @@ void TemporaryFileMetadataManager::CreateFile(const string &filename) {
 idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_location) {
 	lock_guard<std::mutex> lock(alloc_lock);
 	// We assume that the file exists
-	TempFileMetadata &tfmeta = *file_to_temp_meta[filename];
-	idx_t location = tfmeta.block_range->GetStartLBA() + lba_location;
+	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
+	idx_t location = tfmeta->block_range->GetStartLBA() + lba_location;
 
 	// printf("Getting LBA for file %s, lba_location %llu\n", filename.c_str(), location);
 
@@ -105,10 +105,11 @@ void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t
 }
 
 void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t new_size) {
-	printf("Truncating file %s to size %llu\n", filename.c_str(), new_size);
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
 	idx_t new_lba_location = tfmeta->block_range->GetStartLBA() + (new_size / lba_size);
+	printf("Truncating file %s to size %llu, blocks left with new size %llu\n", filename.c_str(), new_lba_location,
+	       (new_size / lba_size));
 
 	idx_t current_lba = tfmeta->lba_location.load();
 	while (current_lba > new_lba_location) {

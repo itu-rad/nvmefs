@@ -112,6 +112,7 @@ void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t
 }
 
 void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t new_size) {
+	lock_guard<std::mutex> lock(alloc_lock);
 	D_ASSERT(file_to_temp_meta.count(filename) > 0);
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 

@@ -9,7 +9,5 @@ source "/home/pinar/.bashrc"
 source "${SCRIPT_DIR}/init.sh"
 
 cd "${SCRIPT_DIR}"
-xnvme-driver
-pytest --extension_dir_path="../../build/release/extension/nvmefs" --device="0000\:ec\:00" --spdk --pci="0000:ec:00"
-xnvme-driver reset
+pytest --extension_dir_path="../../build/release/extension/nvmefs" --device="/dev/nvme1n1" --spdk --pci="0000:ec:00"
 cd "${CURRENT_DIR}"

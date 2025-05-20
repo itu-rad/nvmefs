@@ -13,9 +13,13 @@ def test_create_database_close_and_open(device):
                         TYPE NVMEFS,
                         nvme_device_path '{device.device_path}',
                         fdp_plhdls       '{7}',
-                        backend         'io_uring_cmd'
+                        backend         'spdk_sync'
                     );""")
-    
+
+    con.close()
+
+    con = duckdb.connect(config={"allow_unsigned_extensions": "true"})
+    con.load_extension("nvmefs")
     con.execute("ATTACH DATABASE 'nvmefs:///test.db' AS test (READ_WRITE);")
 
     con.execute("CREATE SCHEMA test.public;")

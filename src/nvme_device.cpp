@@ -142,10 +142,6 @@ DeviceGeometry NvmeDevice::LoadDeviceGeometry() {
 }
 
 void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
-	if (StringUtil::Equals(this->backend.data(), "spdk")) {
-        opts.be = "spdk";
-    }
-
 	if (this->async) {
 		opts.async = this->backend.data();
 		if (StringUtil::Equals(this->backend.data(), "io_uring_cmd")) {
@@ -154,6 +150,13 @@ void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
 	} else {
 		opts.sync = this->backend.data();
 	}
+
+	if (StringUtil::Equals(this->backend.data(), "spdk")) {
+        opts.be = "spdk";
+		opts.sync = "nvme";
+		opts.async = "nvme";
+		opts.direct = 1;
+    }
 }
 
 void NvmeDevice::CommandCallback(struct xnvme_cmd_ctx *ctx, void *cb_args) {

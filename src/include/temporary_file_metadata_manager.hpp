@@ -3,6 +3,8 @@
 #include "duckdb.hpp"
 #include "nvmefs_temporary_block_manager.hpp"
 #include <atomic>
+#include <boost/thread/shared_mutex.hpp> // sudo apt-get install libboost-all-dev
+#include <boost/thread/locks.hpp>
 
 namespace duckdb {
 
@@ -17,6 +19,7 @@ public:
 	idx_t nr_blocks;
 	std::atomic<idx_t> lba_location;
 	TemporaryBlock *block_range;
+	boost::shared_mutex file_mutex;
 };
 
 class TemporaryFileMetadataManager {
@@ -47,10 +50,13 @@ public:
 	void Clear();
 
 private:
+	TempFileMetadata *GetOrCreateFile(const string &filename);
+
+private:
 	idx_t lba_size;
 	idx_t lba_amount;
 	unique_ptr<NvmeTemporaryBlockManager> block_manager;
 	map<string, unique_ptr<TempFileMetadata>> file_to_temp_meta;
-	std::mutex alloc_lock;
+	boost::shared_mutex temp_mutex;
 };
 } // namespace duckdb

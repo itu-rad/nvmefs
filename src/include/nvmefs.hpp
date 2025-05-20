@@ -7,7 +7,7 @@
 #include "device.hpp"
 #include "nvme_device.hpp"
 #include "nvmefs_config.hpp"
-#include "nvmefs_temporary_block_manager.hpp"
+#include "temporary_file_metadata_manager.hpp"
 
 namespace duckdb {
 
@@ -19,19 +19,16 @@ const string NVMEFS_GLOBAL_METADATA_PATH = "nvmefs://.global_metadata";
 
 enum MetadataType { DATABASE, WAL, TEMPORARY };
 
-struct Metadata {
-	uint64_t start;
-	uint64_t end;
-	uint64_t location;
-};
-
 struct GlobalMetadata {
 	uint64_t db_path_size;
 	char db_path[101];
 
-	Metadata database;
-	Metadata write_ahead_log;
-	Metadata temporary;
+	uint64_t db_start;
+	uint64_t wal_start;
+	uint64_t tmp_start;
+
+	uint64_t db_location;
+	uint64_t wal_location;
 };
 
 struct TemporaryFileMetadata {
@@ -75,7 +72,7 @@ class NvmeFileSystem : public FileSystem {
 public:
 	NvmeFileSystem(NvmeConfig config);
 	NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device);
-	~NvmeFileSystem() = default;
+	~NvmeFileSystem();
 
 	unique_ptr<FileHandle> OpenFile(const string &path, FileOpenFlags flags,
 	                                optional_ptr<FileOpener> opener = nullptr) override;
@@ -96,9 +93,8 @@ public:
 	void Seek(FileHandle &handle, idx_t location) override;
 	void Reset(FileHandle &handle);
 	idx_t SeekPosition(FileHandle &handle) override;
-	bool ListFiles(const string &directory,
-		const std::function<void(const string &, bool)> &callback,
-		FileOpener *opener = nullptr);
+	bool ListFiles(const string &directory, const std::function<void(const string &, bool)> &callback,
+	               FileOpener *opener = nullptr);
 	optional_idx GetAvailableDiskSpace(const string &path);
 	bool Trim(FileHandle &handle, idx_t offset_bytes, idx_t length_bytes) override;
 
@@ -129,10 +125,11 @@ private:
 	Allocator &allocator;
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<Device> device;
-	map<string, TemporaryFileMetadata> file_to_temp_meta;
-	unique_ptr<NvmeTemporaryBlockManager> temp_block_manager;
+	unique_ptr<TemporaryFileMetadataManager> temp_meta_manager;
+	atomic<idx_t> db_location;
+	atomic<idx_t> wal_location;
 	idx_t max_temp_size;
 	idx_t max_wal_size;
-	static std::recursive_mutex api_lock;
+	static std::recursive_mutex temp_lock;
 };
 } // namespace duckdb

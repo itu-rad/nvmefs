@@ -645,6 +645,7 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 			file_to_temp_meta[filename] = tfmeta;
 
 		} else {
+			printf("Creating temporary file %s\n", filename.c_str());
 			tfmeta = {.block_size = nr_lbas * geo.lba_size};
 			file_to_temp_meta[filename] = tfmeta;
 

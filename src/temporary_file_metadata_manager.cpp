@@ -83,7 +83,7 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_loc
 	TempFileMetadata &tfmeta = *file_to_temp_meta[filename];
 	idx_t location = tfmeta.block_range->GetStartLBA() + lba_location;
 
-	printf("Getting LBA for file %s, lba_location %llu\n", filename.c_str(), location);
+	// printf("Getting LBA for file %s, lba_location %llu\n", filename.c_str(), location);
 
 	return location;
 }
@@ -97,7 +97,7 @@ void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t
 	while (lba_location > current_lba) {
 		// Attempt to update the lba_location atomically
 		if (tfmeta->lba_location.compare_exchange_weak(current_lba, lba_location)) {
-			printf("Moved LBA location for file %s to %llu\n", filename.c_str(), lba_location);
+			// printf("Moved LBA location for file %s to %llu\n", filename.c_str(), lba_location);
 			return; // Update successful
 		}
 	}

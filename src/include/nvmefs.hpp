@@ -125,7 +125,8 @@ private:
 	Allocator &allocator;
 	unique_ptr<GlobalMetadata> metadata;
 	unique_ptr<Device> device;
-	unique_ptr<TemporaryFileMetadataManager> temp_meta_manager;
+	map<string, TemporaryFileMetadata> file_to_temp_meta;
+	unique_ptr<NvmeTemporaryBlockManager> temp_block_manager;
 	atomic<idx_t> db_location;
 	atomic<idx_t> wal_location;
 	idx_t max_temp_size;

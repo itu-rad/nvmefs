@@ -78,7 +78,7 @@ NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device)
 }
 
 NvmeFileSystem::~NvmeFileSystem() {
-	if(metadata) {
+	if (metadata) {
 		WriteMetadata(*metadata);
 	}
 }
@@ -96,10 +96,6 @@ unique_ptr<FileHandle> NvmeFileSystem::OpenFile(const string &path, FileOpenFlag
 
 	if (path == NVMEFS_GLOBAL_METADATA_PATH) {
 		return make_uniq<NvmeFileHandle>(*this, path, flags);
-	}
-
-	if (flags.CreateFileIfNotExists() && GetMetadataType(path) == MetadataType::TEMPORARY) {
-		temp_meta_manager->CreateFile(path); // Create temporary file here since we ensure it is duckdb synchronized
 	}
 
 	unique_ptr<FileHandle> handle = make_uniq<NvmeFileHandle>(*this, path, flags);
@@ -195,7 +191,11 @@ bool NvmeFileSystem::FileExists(const string &filename, optional_ptr<FileOpener>
 		}
 		break;
 	case TEMPORARY:
-		exists = temp_meta_manager->FileExists(filename);
+		temp_lock.lock();
+		if (file_to_temp_meta.count(filename)) {
+			exists = true;
+		}
+		temp_lock.unlock();
 		break;
 	default:
 		throw IOException("No such metadata type");
@@ -215,7 +215,10 @@ int64_t NvmeFileSystem::GetFileSize(FileHandle &handle) {
 		nr_lbas = db_location.load() - metadata->db_start;
 		break;
 	case MetadataType::TEMPORARY: {
-		nr_lbas = temp_meta_manager->GetFileSizeLBA(fh.path);
+		temp_lock.lock();
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[fh.path];
+		nr_lbas = (tfmeta.block_size * tfmeta.block_map.size()) / geo.lba_size;
+		temp_lock.unlock();
 		break;
 	}
 	case MetadataType::WAL:
@@ -262,7 +265,21 @@ void NvmeFileSystem::Truncate(FileHandle &handle, int64_t new_size) {
 				;
 		} break;
 		case MetadataType::TEMPORARY: {
-			temp_meta_manager->TruncateFile(nvme_handle.path, new_size);
+			temp_lock.lock();
+			TemporaryFileMetadata tfmeta = file_to_temp_meta[nvme_handle.path];
+
+			idx_t to_block_index = new_size / tfmeta.block_size;
+			idx_t from_block_index = tfmeta.block_map.size();
+
+			for (idx_t i = from_block_index; i > to_block_index; i--) {
+				idx_t block_index = i - 1;
+				TemporaryBlock *block = tfmeta.block_map[block_index];
+				temp_block_manager->FreeBlock(block);
+				tfmeta.block_map.erase(block_index);
+			}
+
+			file_to_temp_meta[nvme_handle.path] = tfmeta;
+			temp_lock.unlock();
 		} break;
 		default:
 			throw InvalidInputException("Unknown metadata type");
@@ -285,7 +302,9 @@ void NvmeFileSystem::RemoveDirectory(const string &directory, optional_ptr<FileO
 	// We only support removal of temporary directory
 	MetadataType type = GetMetadataType(directory);
 	if (type == MetadataType::TEMPORARY) {
-		temp_meta_manager->Clear();
+		temp_lock.unlock();
+		file_to_temp_meta.clear();
+		temp_lock.lock();
 	} else {
 		throw IOException("Cannot delete unknown directory");
 	}
@@ -309,7 +328,13 @@ void NvmeFileSystem::RemoveFile(const string &filename, optional_ptr<FileOpener>
 		break;
 
 	case TEMPORARY: {
-		temp_meta_manager->DeleteFile(filename);
+		temp_lock.lock();
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[filename];
+		for (const auto &kv : tfmeta.block_map) {
+			temp_block_manager->FreeBlock(kv.second);
+		}
+		file_to_temp_meta.erase(filename);
+		temp_lock.unlock();
 	} break;
 	default:
 		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
@@ -336,7 +361,10 @@ void NvmeFileSystem::Seek(FileHandle &handle, idx_t location) {
 		max_seek_bound = ((metadata->wal_start - 1) - metadata->db_start) * geo.lba_size;
 		break;
 	case TEMPORARY: {
-		max_seek_bound = temp_meta_manager->GetFileSizeLBA(nvme_handle.path) * geo.lba_size;
+		temp_lock.lock();
+		TemporaryFileMetadata tfmeta = file_to_temp_meta[nvme_handle.path];
+		max_seek_bound = tfmeta.block_size * tfmeta.block_map.size();
+		temp_lock.unlock();
 	} break;
 	default:
 		// No other files to delete - we only have the database file, temporary files and the write_ahead_log
@@ -375,7 +403,11 @@ bool NvmeFileSystem::ListFiles(const string &directory, const std::function<void
 		dir = true;
 	} else if (StringUtil::Equals(directory.data(), NVMEFS_TMP_DIR_PATH.data())) {
 		dir = true;
-		temp_meta_manager->ListFiles(directory, callback);
+		temp_lock.lock();
+		for (const auto &kv : file_to_temp_meta) {
+			callback(StringUtil::GetFileName(kv.first), false);
+		}
+		temp_lock.unlock();
 	}
 	return dir;
 }
@@ -397,11 +429,24 @@ optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path) {
 		idx_t wal_used_bytes = (wal_location.load() - metadata->wal_start) * geo.lba_size;
 		idx_t temp_used_bytes {};
 
-		idx_t temp_avail_bytes = temp_meta_manager->GetAvailableSpace();
+		temp_lock.lock();
+		for (const auto &kv : file_to_temp_meta) {
+			temp_used_bytes += kv.second.block_size * kv.second.block_map.size();
+		}
+		temp_lock.unlock();
 
-		remaining = (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + temp_avail_bytes;
+		remaining =
+		    (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + (temp_max_bytes - temp_used_bytes);
 	} else if (StringUtil::Equals(path.data(), NVMEFS_TMP_DIR_PATH.data())) {
-		remaining = temp_meta_manager->GetAvailableSpace();
+		idx_t temp_max_bytes = ((geo.lba_count - 1) - metadata->tmp_start) * geo.lba_size;
+		idx_t temp_used_bytes {};
+
+		temp_lock.lock();
+		for (const auto &kv : file_to_temp_meta) {
+			temp_used_bytes += kv.second.block_size * kv.second.block_map.size();
+		}
+		temp_lock.unlock();
+		remaining = (temp_max_bytes - temp_used_bytes);
 	}
 	return remaining;
 }
@@ -432,8 +477,6 @@ bool NvmeFileSystem::TryLoadMetadata() {
 		wal_location.store(metadata->wal_location);
 
 		DeviceGeometry geo = device->GetDeviceGeometry();
-		temp_meta_manager =
-		    make_uniq<TemporaryFileMetadataManager>(metadata->tmp_start, geo.lba_count - 1, geo.lba_size);
 		return true;
 	}
 
@@ -465,7 +508,7 @@ void NvmeFileSystem::InitializeMetadata(const string &filename) {
 	strncpy(global->db_path, filename.data(), filename.length());
 	global->db_path[100] = '\0';
 
-	temp_meta_manager = make_uniq<TemporaryFileMetadataManager>(temp_start, geo.lba_count - 1, geo.lba_size);
+	temp_block_manager = make_uniq<NvmeTemporaryBlockManager>(temp_start, geo.lba_count - 1);
 
 	WriteMetadata(*global);
 
@@ -494,7 +537,7 @@ unique_ptr<GlobalMetadata> NvmeFileSystem::ReadMetadata() {
 		DeviceGeometry geo = device->GetDeviceGeometry();
 		global = make_uniq<GlobalMetadata>(GlobalMetadata {});
 		memcpy(global.get(), buffer + nr_bytes_magic, nr_bytes_global);
-		temp_meta_manager = make_uniq<TemporaryFileMetadataManager>(global->tmp_start, geo.lba_count - 1, geo.lba_size);
+		temp_block_manager = make_uniq<NvmeTemporaryBlockManager>(global->tmp_start, geo.lba_count - 1);
 	}
 
 	allocator.FreeData(buffer, bytes_to_read);
@@ -545,7 +588,6 @@ void NvmeFileSystem::UpdateMetadata(CmdContext &context) {
 		// The temporary metadata remain static given that location is unused.
 		// The file_to_temp_meta map will be updated during GetLBA, hence
 		// no action is required here.
-		temp_meta_manager->MoveLBALocation(ctx.filepath, ctx.start_lba + ctx.nr_lbas);
 		break;
 	case MetadataType::DATABASE: {
 		idx_t expected_location = db_location.load();
@@ -588,7 +630,31 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 		lba = metadata->wal_start + lba_location;
 		break;
 	case MetadataType::TEMPORARY: {
-		lba = temp_meta_manager->GetLBA(filename, lba_location);
+		temp_lock.lock();
+		TemporaryFileMetadata tfmeta;
+
+		if (file_to_temp_meta.count(filename)) {
+			tfmeta = file_to_temp_meta[filename];
+			idx_t block_index = location / tfmeta.block_size;
+
+			if (!tfmeta.block_map.count(block_index)) {
+				TemporaryBlock *block = temp_block_manager->AllocateBlock(nr_lbas);
+				tfmeta.block_map[block_index] = block;
+			}
+			lba = tfmeta.block_map[block_index]->GetStartLBA();
+			file_to_temp_meta[filename] = tfmeta;
+
+		} else {
+			tfmeta = {.block_size = nr_lbas * geo.lba_size};
+			file_to_temp_meta[filename] = tfmeta;
+
+			idx_t block_index = location / tfmeta.block_size;
+
+			TemporaryBlock *block = temp_block_manager->AllocateBlock(nr_lbas);
+			file_to_temp_meta[filename].block_map[block_index] = block;
+			lba = block->GetStartLBA();
+		}
+		temp_lock.unlock();
 	} break;
 	case MetadataType::DATABASE:
 		lba = metadata->db_start + lba_location;

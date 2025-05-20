@@ -64,13 +64,14 @@ void TemporaryFileMetadataManager::CreateFile(const string &filename) {
 	unique_ptr<TempFileMetadata> tfmeta = CreateTempFileMetadata(filename);
 
 	// Since the duckdb synchronization is per file, we have to lock the shared range block allocation
-	alloc_lock.lock();
-	idx_t lba_amount = ((tfmeta->nr_blocks * tfmeta->block_size) / lba_size) + 64;
-	printf("Allocating %llu lba for file %s\n", lba_amount, filename.c_str());
-	tfmeta->block_range = block_manager->AllocateBlock(lba_amount);
-	alloc_lock.unlock();
-	printf("Allocated block range for file %s, start lba %llu, end lba %llu\n", filename.c_str(),
-	       tfmeta->block_range->GetStartLBA(), tfmeta->block_range->GetEndLBA());
+	{
+		lock_guard<std::mutex> lock(alloc_lock);
+		idx_t lba_amount = ((tfmeta->nr_blocks * tfmeta->block_size) / lba_size) + 64;
+		printf("Allocating %llu lba for file %s\n", lba_amount, filename.c_str());
+		tfmeta->block_range = block_manager->AllocateBlock(lba_amount);
+		printf("Allocated block range for file %s, start lba %llu, end lba %llu\n", filename.c_str(),
+		       tfmeta->block_range->GetStartLBA(), tfmeta->block_range->GetEndLBA());
+	}
 
 	tfmeta->lba_location.store(tfmeta->block_range->GetStartLBA());
 	tfmeta->is_active.store(true);

@@ -85,7 +85,11 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_loc
 	// We assume that the file exists
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 	idx_t location = tfmeta->block_range->GetStartLBA() + lba_location;
+	idx_t lbas_per_block = tfmeta->block_size / lba_size;
 	D_ASSERT(lba_location < (tfmeta->block_range->GetEndLBA() - tfmeta->block_range->GetStartLBA()));
+	D_ASSERT(location < tfmeta->block_range->GetEndLBA());
+	D_ASSERT(location >= tfmeta->block_range->GetStartLBA());
+	D_ASSERT(location + lbas_per_block <= tfmeta->block_range->GetEndLBA());
 	// printf("Getting LBA for file %s, lba_location %llu\n", filename.c_str(), location);
 
 	return location;

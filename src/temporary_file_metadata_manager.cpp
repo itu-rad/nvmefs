@@ -55,6 +55,8 @@ inline unique_ptr<TempFileMetadata> CreateTempFileMetadata(const string &filenam
 	return std::move(tfmeta);
 }
 
+boost::shared_mutex TemporaryFileMetadataManager::temp_mutex;
+
 const TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const string &filename) {
 
 	// Lock the shared mutex for writing

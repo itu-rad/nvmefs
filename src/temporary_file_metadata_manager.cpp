@@ -77,7 +77,8 @@ TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const string &fi
 	// Lock the shared range block allocation
 	if (is_new) {
 		printf("Creating block range for %s\n", filename.c_str());
-		TemporaryBlock *block = block_manager->AllocateBlock((tfmeta->nr_blocks * tfmeta->block_size) / lba_size);
+		TemporaryBlock *block =
+		    block_manager->AllocateBlock((entry->second->nr_blocks * entry->second->block_size) / lba_size);
 		printf("1\n");
 		entry->second->block_range = block;
 		printf("2\n");

@@ -136,6 +136,7 @@ void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t
 
 void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t new_size) {
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
+	printf("TruncateFile %s\n", filename.c_str());
 
 	if (!file_to_temp_meta.count(filename)) {
 		return;
@@ -151,6 +152,7 @@ void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t ne
 
 void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
+	printf("DeleteFile %s\n", filename.c_str());
 
 	if (!file_to_temp_meta.count(filename)) {
 		return;
@@ -167,6 +169,7 @@ void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
 }
 
 bool TemporaryFileMetadataManager::FileExists(const string &filename) {
+	printf("FileExists %s\n", filename.c_str());
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 
 	if (file_to_temp_meta.count(filename)) {
@@ -201,6 +204,7 @@ idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
 
 void TemporaryFileMetadataManager::Clear() {
 	boost::unique_lock<boost::shared_mutex> alloc_lock(temp_mutex);
+	printf("Clearing temporary file metadata\n");
 	for (auto &kv : file_to_temp_meta) {
 		block_manager->FreeBlock(kv.second->block_range);
 	}
@@ -209,6 +213,7 @@ void TemporaryFileMetadataManager::Clear() {
 } // namespace duckdb
 
 idx_t TemporaryFileMetadataManager::GetAvailableSpace() {
+	printf("GetAvailableSpace\n");
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 
 	idx_t available_space = lba_amount * lba_size;
@@ -226,6 +231,7 @@ idx_t TemporaryFileMetadataManager::GetAvailableSpace() {
 
 void TemporaryFileMetadataManager::ListFiles(const string &directory,
                                              const std::function<void(const string &, bool)> &callback) {
+	printf("ListFiles %s\n", directory.c_str());
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 
 	for (const auto &kv : file_to_temp_meta) {

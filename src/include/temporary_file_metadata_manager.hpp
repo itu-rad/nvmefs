@@ -5,6 +5,7 @@
 #include <atomic>
 #include <boost/thread/shared_mutex.hpp> // sudo apt-get install libboost-all-dev
 #include <boost/thread/locks.hpp>
+#include <shared_mutex>
 
 namespace duckdb {
 

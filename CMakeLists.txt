@@ -26,6 +26,10 @@ find_library(XNVME_LIB xnvme)
 target_link_libraries(${EXTENSION_NAME} ${XNVME_LIB})
 target_link_libraries(${LOADABLE_EXTENSION_NAME} ${XNVME_LIB})
 
+find_package(Boost REQUIRED COMPONENTS thread)
+target_link_libraries(${EXTENSION_NAME} Boost::thread)
+target_link_libraries(${LOADABLE_EXTENSION_NAME} Boost::thread)
+
 add_subdirectory(test)
 
 install(

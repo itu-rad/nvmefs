@@ -19,6 +19,7 @@ public:
 	idx_t block_size;
 	idx_t nr_blocks;
 	std::atomic<idx_t> lba_location;
+	map<idx_t, TemporaryBlock *> block_map;
 	TemporaryBlock *block_range;
 	boost::shared_mutex file_mutex;
 };
@@ -26,7 +27,8 @@ public:
 class TemporaryFileMetadataManager {
 public:
 	TemporaryFileMetadataManager(idx_t start_lba, idx_t end_lba, idx_t lba_size)
-	    : block_manager(make_uniq<NvmeTemporaryBlockManager>(start_lba, end_lba)), lba_size(lba_size),
+	    : block_manager(make_uniq<NvmeTemporaryBlockManager>(start_lba, end_lba)),
+	      our_block_manager(make_uniq<NvmeTemporaryBlockManager>(start_lba, end_lba)), lba_size(lba_size),
 	      lba_amount(end_lba - start_lba) {
 	}
 
@@ -58,6 +60,7 @@ private:
 	idx_t lba_size;
 	idx_t lba_amount;
 	unique_ptr<NvmeTemporaryBlockManager> block_manager;
+	unique_ptr<NvmeTemporaryBlockManager> our_block_manager;
 	map<string, unique_ptr<TempFileMetadata>> file_to_temp_meta;
 	boost::shared_mutex temp_mutex;
 };

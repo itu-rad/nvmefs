@@ -76,7 +76,7 @@ const TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const stri
 	if (is_new) {
 		printf("Creating block range for %s\n", filename.c_str());
 		TemporaryBlock *block =
-		    block_manager->AllocateBlock((entry->second->nr_blocks * entry->second->block_size) / lba_size);
+		    our_block_manager->AllocateBlock((entry->second->nr_blocks * entry->second->block_size) / lba_size);
 		printf("1\n");
 		entry->second->block_range = block;
 	}
@@ -99,7 +99,13 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t locatio
 		throw IOException("Temporary file block size mismatch");
 	}
 
-	idx_t lba = tfmeta->block_range->GetStartLBA() + (block_index * nr_lbas);
+	if (!tfmeta->block_map.count(block_index)) {
+		TemporaryBlock *block = block_manager->AllocateBlock(nr_lbas);
+		tfmeta->block_map[block_index] = block;
+	}
+	idx_t lba = tfmeta->block_map[block_index]->GetStartLBA();
+
+	idx_t our_lba = tfmeta->block_range->GetStartLBA() + (block_index * nr_lbas);
 
 	idx_t new_location = (block_index * nr_lbas) + nr_lbas;
 	idx_t current_location = tfmeta->lba_location.load();
@@ -143,10 +149,20 @@ void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t ne
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
-	idx_t to_block_index = new_size / tfmeta->block_size;
-	idx_t lbas = to_block_index * (tfmeta->block_size / lba_size);
+	idx_t our_to_block_index = new_size / tfmeta->block_size;
+	idx_t lbas = our_to_block_index * (tfmeta->block_size / lba_size);
 
 	tfmeta->lba_location.store(lbas);
+
+	idx_t to_block_index = new_size / tfmeta->block_size;
+	idx_t from_block_index = tfmeta->block_map.size();
+
+	for (idx_t i = from_block_index; i > to_block_index; i--) {
+		idx_t block_index = i - 1;
+		TemporaryBlock *block = tfmeta->block_map[block_index];
+		block_manager->FreeBlock(block);
+		tfmeta->block_map.erase(block_index);
+	}
 
 	// file_to_temp_meta[nvme_handle.path] = tfmeta;
 }
@@ -158,6 +174,11 @@ void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
 
 	tfmeta->is_active.store(false);
 	tfmeta->lba_location.store(0);
+
+	for (const auto &kv : tfmeta->block_map) {
+		block_manager->FreeBlock(kv.second);
+	}
+	// file_to_temp_meta.erase(filename);
 }
 
 bool TemporaryFileMetadataManager::FileExists(const string &filename) {
@@ -173,7 +194,13 @@ bool TemporaryFileMetadataManager::FileExists(const string &filename) {
 idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
-	idx_t nr_lbas = tfmeta->lba_location.load();
+	idx_t our_nr_lbas = tfmeta->lba_location.load();
+
+	idx_t nr_lbas = (tfmeta->block_size * tfmeta->block_map.size()) / lba_size;
+
+	if (our_nr_lbas != nr_lbas) {
+		throw IOException("Temporary file block size mismatch");
+	}
 
 	return nr_lbas;
 }
@@ -189,7 +216,14 @@ idx_t TemporaryFileMetadataManager::GetSeekBound(const string &filename) {
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 	idx_t num_blocks = (tfmeta->lba_location.load() * lba_size) / tfmeta->block_size;
-	return tfmeta->block_size * num_blocks;
+
+	idx_t our_seek_bound = tfmeta->block_size * num_blocks;
+	idx_t seek_bound = tfmeta->block_size * tfmeta->block_map.size();
+
+	if (our_seek_bound != seek_bound) {
+		throw IOException("Temporary file seek bound mismatch");
+	}
+	return seek_bound;
 }
 
 idx_t TemporaryFileMetadataManager::GetAvailableSpace(idx_t lba_count, idx_t lba_start) {

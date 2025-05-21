@@ -19,7 +19,7 @@ public:
 	idx_t block_size;
 	idx_t nr_blocks;
 	std::atomic<idx_t> lba_location;
-	map<idx_t, TemporaryBlock *> block_map;
+	TemporaryBlock *block_range;
 	boost::shared_mutex file_mutex;
 };
 

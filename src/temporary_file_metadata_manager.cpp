@@ -161,6 +161,8 @@ void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
 	}
 
 	tfmeta->is_active.store(false);
+	block_manager->FreeBlock(tfmeta->block_range);
+	file_to_temp_meta.erase(filename);
 }
 
 bool TemporaryFileMetadataManager::FileExists(const string &filename) {

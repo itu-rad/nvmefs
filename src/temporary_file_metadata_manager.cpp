@@ -169,12 +169,14 @@ void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
 }
 
 bool TemporaryFileMetadataManager::FileExists(const string &filename) {
-	printf("FileExists %s\n", filename.c_str());
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 
 	if (file_to_temp_meta.count(filename)) {
+		printf("FileExists %s\n", filename.c_str());
 		return file_to_temp_meta[filename]->is_active.load();
 	}
+
+	printf("FileExists %s not found\n", filename.c_str());
 
 	return false;
 }

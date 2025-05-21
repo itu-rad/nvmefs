@@ -76,7 +76,7 @@ const TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const stri
 	if (is_new) {
 		// printf("Creating block range for %s\n", filename.c_str());
 		TemporaryBlock *block =
-		    block_manager->AllocateBlock((entry->second->nr_blocks * entry->second->block_size) / lba_size);
+		    block_manager->AllocateBlock(((entry->second->nr_blocks * entry->second->block_size) / lba_size) + 64);
 		entry->second->block_range = block;
 		entry->second->block_manager =
 		    make_uniq<NvmeTemporaryBlockManager>(block->GetStartLBA(), block->GetLBAAmount());

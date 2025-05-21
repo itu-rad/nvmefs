@@ -103,8 +103,11 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_loc
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
 	boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
+	idx_t location = tfmeta->block_range->GetStartLBA() + lba_location;
 
-	return tfmeta->block_range->GetStartLBA() + lba_location;
+	printf("GetLBA %s, location %d\n", filename.c_str(), location);
+
+	return location;
 }
 
 void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t lba_location) {
@@ -123,9 +126,12 @@ void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t
 		// Location does not need to be updated from this thread anymore
 		// Another thread have surpassed it
 		if (lba_location < current_lba) {
+			printf("MoveLBALocation %s, location %d\n", filename.c_str(), current_lba);
 			break;
 		}
 	} while (!tfmeta->lba_location.compare_exchange_weak(current_lba, lba_location));
+
+	printf("MoveLBALocation %s, location %d\n", filename.c_str(), lba_location);
 }
 
 void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t new_size) {

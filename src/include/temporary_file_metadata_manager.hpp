@@ -18,7 +18,8 @@ public:
 	idx_t file_index;
 	idx_t block_size;
 	idx_t nr_blocks;
-	std::atomic<idx_t> lba_location;
+	TemporaryBlock *block_range;
+	unique_ptr<NvmeTemporaryBlockManager> block_manager;
 	map<idx_t, TemporaryBlock *> block_map;
 	boost::shared_mutex file_mutex;
 };

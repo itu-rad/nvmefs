@@ -16,6 +16,7 @@ public:
 	idx_t GetSizeInBytes();
 	idx_t GetStartLBA();
 	idx_t GetEndLBA();
+	idx_t GetLBAAmount();
 
 	bool IsFree();
 

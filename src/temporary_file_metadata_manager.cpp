@@ -49,8 +49,8 @@ inline unique_ptr<TempFileMetadata> CreateTempFileMetadata(const string &filenam
 	tfmeta->block_size = block_size;
 	tfmeta->file_index = file_index;
 	tfmeta->nr_blocks = (1 << file_index) * 4000;
-	tfmeta->lba_location.store(0);
-	// tfmeta->block_range = nullptr;
+	tfmeta->block_range = nullptr;
+	tfmeta->block_manager = nullptr;
 
 	return std::move(tfmeta);
 }
@@ -75,12 +75,11 @@ const TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const stri
 	// Lock the shared range block allocation
 	if (is_new) {
 		// printf("Creating block range for %s\n", filename.c_str());
-		// TemporaryBlock *block =
-		//     block_manager->AllocateBlock((entry->second->nr_blocks * entry->second->block_size) / lba_size);
-		// printf("1\n");
-		// entry->second->block_range = block;
-		// printf("2\n");
-		// entry->second->lba_location.store(block->GetStartLBA());
+		TemporaryBlock *block =
+		    block_manager->AllocateBlock((entry->second->nr_blocks * entry->second->block_size) / lba_size);
+		entry->second->block_range = block;
+		entry->second->block_manager =
+		    make_uniq<NvmeTemporaryBlockManager>(block->GetStartLBA(), block->GetLBAAmount());
 	}
 
 	return file_to_temp_meta[filename].get();
@@ -102,7 +101,7 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t locatio
 	}
 
 	if (!tfmeta->block_map.count(block_index)) {
-		TemporaryBlock *block = block_manager->AllocateBlock(nr_lbas);
+		TemporaryBlock *block = tfmeta->block_manager->AllocateBlock(nr_lbas);
 		tfmeta->block_map[block_index] = block;
 	}
 	idx_t lba = tfmeta->block_map[block_index]->GetStartLBA();
@@ -146,7 +145,7 @@ void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t ne
 	for (idx_t i = from_block_index; i > to_block_index; i--) {
 		idx_t block_index = i - 1;
 		TemporaryBlock *block = tfmeta->block_map[block_index];
-		block_manager->FreeBlock(block);
+		tfmeta->block_manager->FreeBlock(block);
 		tfmeta->block_map.erase(block_index);
 	}
 
@@ -158,16 +157,17 @@ void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 	for (const auto &kv : tfmeta->block_map) {
-		block_manager->FreeBlock(kv.second);
+		tfmeta->block_manager->FreeBlock(kv.second);
 	}
-	file_to_temp_meta.erase(filename);
+
+	tfmeta->is_active.store(false);
 }
 
 bool TemporaryFileMetadataManager::FileExists(const string &filename) {
 	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
 
 	if (file_to_temp_meta.count(filename)) {
-		return true;
+		return file_to_temp_meta[filename]->is_active.load();
 	}
 
 	return false;
@@ -183,6 +183,15 @@ idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
 
 void TemporaryFileMetadataManager::Clear() {
 	boost::unique_lock<boost::shared_mutex> alloc_lock(temp_mutex);
+
+	for (const auto &kv : file_to_temp_meta) {
+		TempFileMetadata *tfmeta = kv.second.get();
+		for (const auto &block : tfmeta->block_map) {
+			tfmeta->block_manager->FreeBlock(block.second);
+		}
+
+		block_manager->FreeBlock(tfmeta->block_range);
+	}
 
 	file_to_temp_meta.clear();
 }

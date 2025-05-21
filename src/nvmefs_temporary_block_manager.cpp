@@ -27,6 +27,10 @@ bool TemporaryBlock::IsFree() {
 	return is_free;
 }
 
+idx_t TemporaryBlock::GetLBAAmount() {
+	return lba_amount;
+}
+
 NvmeTemporaryBlockManager::NvmeTemporaryBlockManager(idx_t allocated_lba_start, idx_t allocated_lba_end)
     : allocated_start_lba(allocated_lba_start), allocated_end_lba(allocated_lba_end) {
 	// Initialize the linked list of free blocks

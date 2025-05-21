@@ -72,8 +72,11 @@ TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const string &fi
 	tfmeta->is_active.store(true);
 	auto [entry, is_new] = file_to_temp_meta.emplace(filename, std::move(tfmeta));
 
+	printf("Temporary file %s created with block size %d and file index %d\n", filename.c_str());
+
 	// Lock the shared range block allocation
 	if (is_new) {
+		printf("Creating block range for %s\n", filename.c_str());
 		TemporaryBlock *block = block_manager->AllocateBlock((tfmeta->nr_blocks * tfmeta->block_size) / lba_size);
 		entry->second->block_range = block;
 		entry->second->lba_location.store(block->GetStartLBA());
@@ -90,6 +93,10 @@ void TemporaryFileMetadataManager::CreateFile(const string &filename) {
 idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_location) {
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 
+	if (!file_to_temp_meta.count(filename)) {
+		throw InternalException("Temporary file %s not found", filename);
+	}
+
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
 	boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
@@ -99,6 +106,10 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_loc
 
 void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t lba_location) {
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
+
+	if (!file_to_temp_meta.count(filename)) {
+		return;
+	}
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 	boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
@@ -116,6 +127,10 @@ void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t
 
 void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t new_size) {
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
+
+	if (!file_to_temp_meta.count(filename)) {
+		return;
+	}
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
@@ -154,6 +169,9 @@ bool TemporaryFileMetadataManager::FileExists(const string &filename) {
 
 idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
+	if (!file_to_temp_meta.count(filename)) {
+		return 0;
+	}
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 

@@ -173,7 +173,7 @@ bool TemporaryFileMetadataManager::FileExists(const string &filename) {
 idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
 	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 	if (!file_to_temp_meta.count(filename)) {
-		throw InternalException("Temporary file %s not found", filename);
+		throw InternalException("Temporary file %s not found", filename.c_str());
 	}
 
 	printf("GetFileSizeLBA %s\n", filename.c_str());
@@ -183,12 +183,12 @@ idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
 	idx_t current_lba = tfmeta->lba_location.load();
 	idx_t start_lba = tfmeta->block_range->GetStartLBA();
 
-	printf("File name %s, Location %d\n", filename, current_lba);
-	printf("File name %s, Start LBA %d\n", filename, start_lba);
+	printf("File name %s, Location %d\n", filename.c_str(), current_lba);
+	printf("File name %s, Start LBA %d\n", filename.c_str(), start_lba);
 
 	idx_t lbas = current_lba - start_lba;
 
-	printf("File name %s, LBA size %d, current location %d\n", filename, lbas, tfmeta->lba_location.load());
+	printf("File name %s, LBA size %d, current location %d\n", filename.c_str(), lbas, tfmeta->lba_location.load());
 
 	return lbas;
 }

@@ -176,6 +176,7 @@ idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
 		return 0;
 	}
 
+	printf("GetFileSizeLBA %s\n", filename.c_str());
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
 	boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);

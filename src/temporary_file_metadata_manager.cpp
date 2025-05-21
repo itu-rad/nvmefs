@@ -169,7 +169,7 @@ bool TemporaryFileMetadataManager::FileExists(const string &filename) {
 	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
 
 	if (file_to_temp_meta.count(filename)) {
-		return file_to_temp_meta[filename]->is_active.load();
+		return true;
 	}
 
 	return false;

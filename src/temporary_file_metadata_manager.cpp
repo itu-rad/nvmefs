@@ -70,9 +70,9 @@ TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const string &fi
 	// Create a new TempFileMetadata object
 	unique_ptr<TempFileMetadata> tfmeta = CreateTempFileMetadata(filename);
 	tfmeta->is_active.store(true);
+	printf("Temporary file %s created with block size %d and file index %d\n", filename.c_str(), tfmeta->block_size,
+	       tfmeta->file_index);
 	auto [entry, is_new] = file_to_temp_meta.emplace(filename, std::move(tfmeta));
-
-	printf("Temporary file %s created with block size %d and file index %d\n", filename.c_str());
 
 	// Lock the shared range block allocation
 	if (is_new) {

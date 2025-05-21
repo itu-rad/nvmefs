@@ -4,23 +4,25 @@ namespace duckdb {
 
 inline idx_t GetBufferSize(const string buffer_size_string) {
 
-	idx_t buffer_size = 262144;
-	if (buffer_size_string == "S32K")
-		buffer_size = 32768;
-	else if (buffer_size_string == "S64K")
-		buffer_size = 65536;
-	else if (buffer_size_string == "S96K")
-		buffer_size = 98304;
-	else if (buffer_size_string == "S128K")
-		buffer_size = 131072;
-	else if (buffer_size_string == "S160K")
-		buffer_size = 163840;
-	else if (buffer_size_string == "S192K")
-		buffer_size = 196608;
-	else if (buffer_size_string == "S224K")
-		buffer_size = 229376;
-
-	return buffer_size;
+	if (!buffer_size_string.compare("S32K")) {
+		return 32768;
+	} else if (!buffer_size_string.compare("S64K")) {
+		return 65536;
+	} else if (!buffer_size_string.compare("S96K")) {
+		return 98304;
+	} else if (!buffer_size_string.compare("S128K")) {
+		return 131072;
+	} else if (!buffer_size_string.compare("S160K")) {
+		return 163840;
+	} else if (!buffer_size_string.compare("S192K")) {
+		return 196608;
+	} else if (!buffer_size_string.compare("S224K")) {
+		return 229376;
+	} else if (!buffer_size_string.compare("DEFAULT")) {
+		return 262144;
+	} else {
+		throw InvalidInputException("Unknown buffer size %s", buffer_size_string.c_str());
+	}
 }
 
 inline unique_ptr<TempFileMetadata> CreateTempFileMetadata(const string &filename) {
@@ -53,7 +55,7 @@ inline unique_ptr<TempFileMetadata> CreateTempFileMetadata(const string &filenam
 	return std::move(tfmeta);
 }
 
-TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const string &filename) {
+const TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const string &filename) {
 
 	// Lock the shared mutex for writing
 	boost::unique_lock<boost::shared_mutex> alloc_lock(temp_mutex);
@@ -66,8 +68,8 @@ TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const string &fi
 	// Create a new TempFileMetadata object
 	unique_ptr<TempFileMetadata> tfmeta = CreateTempFileMetadata(filename);
 	tfmeta->is_active.store(true);
-	printf("Temporary file %s created with block size %d and file index %d\n", filename.c_str(), tfmeta->block_size,
-	       tfmeta->file_index);
+	// printf("Temporary file %s created with block size %d and file index %d\n", filename.c_str(), tfmeta->block_size,
+	//    tfmeta->file_index);
 	auto [entry, is_new] = file_to_temp_meta.emplace(filename, std::move(tfmeta));
 
 	// Lock the shared range block allocation
@@ -94,6 +96,10 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t locatio
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 	idx_t block_index = location / tfmeta->block_size;
+
+	if (nr_lbas != (tfmeta->block_size / lba_size)) {
+		throw IOException("Temporary file block size mismatch");
+	}
 
 	if (!tfmeta->block_map.count(block_index)) {
 		TemporaryBlock *block = block_manager->AllocateBlock(nr_lbas);

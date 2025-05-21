@@ -52,8 +52,7 @@ public:
 
 	void Clear();
 
-private:
-	TempFileMetadata *GetOrCreateFile(const string &filename);
+	const TempFileMetadata *GetOrCreateFile(const string &filename);
 
 private:
 	idx_t lba_size;

@@ -176,7 +176,7 @@ bool TemporaryFileMetadataManager::FileExists(const string &filename) {
 }
 
 idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
-	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
+	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 	idx_t nr_lbas = (tfmeta->block_size * tfmeta->block_map.size()) / lba_size;
 
@@ -190,7 +190,7 @@ void TemporaryFileMetadataManager::Clear() {
 }
 
 idx_t TemporaryFileMetadataManager::GetSeekBound(const string &filename) {
-	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
+	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 	return tfmeta->block_size * tfmeta->block_map.size();

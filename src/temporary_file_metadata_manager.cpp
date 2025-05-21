@@ -104,7 +104,7 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t locatio
 		}
 	}
 
-	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
+	// boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
 	boost::unique_lock<boost::shared_mutex> file_lock(file_to_temp_meta[filename]->file_mutex);
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
@@ -156,7 +156,7 @@ void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t ne
 	for (idx_t i = from_block_index; i > to_block_index; i--) {
 		idx_t block_index = i - 1;
 		TemporaryBlock *block = tfmeta->block_map[block_index];
-		block_manager->FreeBlock(block);
+		FreeBlockInternal(lock, block);
 		tfmeta->block_map.erase(block_index);
 	}
 
@@ -170,7 +170,7 @@ void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
 	{
 		boost::unique_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
 		for (const auto &kv : tfmeta->block_map) {
-			block_manager->FreeBlock(kv.second);
+			FreeBlockInternal(lock, kv.second);
 		}
 	}
 
@@ -205,7 +205,7 @@ void TemporaryFileMetadataManager::Clear() {
 		boost::unique_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
 
 		for (const auto &block : tfmeta->block_map) {
-			block_manager->FreeBlock(block.second);
+			FreeBlockInternal(alloc_lock, block.second);
 		}
 	}
 
@@ -245,4 +245,26 @@ void TemporaryFileMetadataManager::ListFiles(const string &directory,
 		callback(StringUtil::GetFileName(kv.first), false);
 	}
 }
+
+void TemporaryFileMetadataManager::FreeBlock(TemporaryBlock *block) {
+	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
+
+	FreeBlockInternal(lock, block);
+}
+
+TemporaryBlock *TemporaryFileMetadataManager::AllocateBlock(idx_t lba_amount) {
+	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
+	TemporaryBlock *block = AllocateBlockInternal(lock, lba_amount);
+
+	return block;
+}
+void TemporaryFileMetadataManager::FreeBlockInternal(boost::unique_lock<boost::shared_mutex> &lock,
+                                                     TemporaryBlock *block) {
+	block_manager->FreeBlock(block);
+}
+TemporaryBlock *TemporaryFileMetadataManager::AllocateBlockInternal(boost::unique_lock<boost::shared_mutex> &lock,
+                                                                    idx_t lba_amount) {
+	return block_manager->AllocateBlock(lba_amount);
+}
+
 } // namespace duckdb

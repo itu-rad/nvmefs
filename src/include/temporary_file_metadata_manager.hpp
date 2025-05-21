@@ -55,6 +55,13 @@ public:
 	const TempFileMetadata *GetOrCreateFile(const string &filename);
 
 private:
+	TemporaryBlock *AllocateBlock(idx_t lba_amount);
+	void FreeBlock(TemporaryBlock *block);
+
+	TemporaryBlock *AllocateBlockInternal(boost::unique_lock<boost::shared_mutex> &lock, idx_t lba_amount);
+	void FreeBlockInternal(boost::unique_lock<boost::shared_mutex> &lock, TemporaryBlock *block);
+
+private:
 	idx_t lba_size;
 	idx_t lba_amount;
 	unique_ptr<NvmeTemporaryBlockManager> block_manager;

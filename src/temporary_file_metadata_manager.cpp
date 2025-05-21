@@ -104,7 +104,7 @@ idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_loc
 
 	boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
 
-	return tfmeta->block_range->GetStartLBA() + tfmeta->lba_location.load();
+	return tfmeta->block_range->GetStartLBA() + lba_location;
 }
 
 void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t lba_location) {

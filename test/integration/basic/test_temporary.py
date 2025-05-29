@@ -16,7 +16,7 @@ def tpch_database_connection(device):
                         TYPE NVMEFS,
                         nvme_device_path '{device.device_path}',
                         fdp_plhdls       '{7}',
-                        backend          'spdk_sync'
+                        backend          'io_uring_cmd'
                     );""")
 
     con.close()

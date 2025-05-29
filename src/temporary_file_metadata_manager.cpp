@@ -4,23 +4,25 @@ namespace duckdb {
 
 inline idx_t GetBufferSize(const string buffer_size_string) {
 
-	idx_t buffer_size = 262144;
-	if (buffer_size_string == "S32K")
-		buffer_size = 32768;
-	else if (buffer_size_string == "S64K")
-		buffer_size = 65536;
-	else if (buffer_size_string == "S96K")
-		buffer_size = 98304;
-	else if (buffer_size_string == "S128K")
-		buffer_size = 131072;
-	else if (buffer_size_string == "S160K")
-		buffer_size = 163840;
-	else if (buffer_size_string == "S192K")
-		buffer_size = 196608;
-	else if (buffer_size_string == "S224K")
-		buffer_size = 229376;
-
-	return buffer_size;
+	if (!buffer_size_string.compare("S32K")) {
+		return 32768;
+	} else if (!buffer_size_string.compare("S64K")) {
+		return 65536;
+	} else if (!buffer_size_string.compare("S96K")) {
+		return 98304;
+	} else if (!buffer_size_string.compare("S128K")) {
+		return 131072;
+	} else if (!buffer_size_string.compare("S160K")) {
+		return 163840;
+	} else if (!buffer_size_string.compare("S192K")) {
+		return 196608;
+	} else if (!buffer_size_string.compare("S224K")) {
+		return 229376;
+	} else if (!buffer_size_string.compare("DEFAULT")) {
+		return 262144;
+	} else {
+		throw InvalidInputException("Unknown buffer size %s", buffer_size_string.c_str());
+	}
 }
 
 inline unique_ptr<TempFileMetadata> CreateTempFileMetadata(const string &filename) {
@@ -48,126 +50,200 @@ inline unique_ptr<TempFileMetadata> CreateTempFileMetadata(const string &filenam
 	tfmeta->file_index = file_index;
 	tfmeta->nr_blocks = (1 << file_index) * 4000;
 	tfmeta->lba_location.store(0);
-	tfmeta->block_range = nullptr;
+	// tfmeta->block_range = nullptr;
 
 	return std::move(tfmeta);
 }
 
-void TemporaryFileMetadataManager::CreateFile(const string &filename) {
+boost::shared_mutex TemporaryFileMetadataManager::temp_mutex;
 
-	// We can check that the file exists without locking because duckdb handles the synchronization for us(per file)
-	if (file_to_temp_meta.count(filename)) {
-		file_to_temp_meta[filename]->is_active.store(true);
-		return;
+const TempFileMetadata *TemporaryFileMetadataManager::GetOrCreateFile(const string &filename) {
+
+	// Lock the shared mutex for writing
+	{
+		boost::shared_lock<boost::shared_mutex> alloc_lock(temp_mutex);
+
+		// Check if the file already exists
+		if (file_to_temp_meta.count(filename)) {
+			return file_to_temp_meta[filename].get();
+		}
 	}
 
+	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
+	// Create a new TempFileMetadata object
 	unique_ptr<TempFileMetadata> tfmeta = CreateTempFileMetadata(filename);
-
-	// Since the duckdb synchronization is per file, we have to lock the shared range block allocation
-	alloc_lock.lock();
-	tfmeta->block_range = block_manager->AllocateBlock((tfmeta->nr_blocks * tfmeta->block_size) / lba_size);
-	alloc_lock.unlock();
-
-	tfmeta->lba_location.store(tfmeta->block_range->GetStartLBA());
 	tfmeta->is_active.store(true);
-	file_to_temp_meta[filename] = std::move(tfmeta);
+	// printf("Temporary file %s created with block size %d and file index %d\n", filename.c_str(), tfmeta->block_size,
+	//    tfmeta->file_index);
+	auto [entry, is_new] = file_to_temp_meta.emplace(filename, std::move(tfmeta));
+
+	return file_to_temp_meta[filename].get();
 }
 
-idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t lba_location) {
-	// We assume that the file exists
-	TempFileMetadata &tfmeta = *file_to_temp_meta[filename];
+void TemporaryFileMetadataManager::CreateFile(const string &filename) {
 
-	return tfmeta.block_range->GetStartLBA() + lba_location;
+	GetOrCreateFile(filename);
+}
+
+idx_t TemporaryFileMetadataManager::GetLBA(const string &filename, idx_t location, idx_t nr_lbas) {
+	{
+		boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
+
+		TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
+		boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
+
+		idx_t block_index = location / tfmeta->block_size;
+
+		if (nr_lbas != (tfmeta->block_size / lba_size)) {
+			throw IOException("Temporary file block size mismatch");
+		}
+
+		if (tfmeta->block_map.count(block_index)) {
+
+			return tfmeta->block_map[block_index]->GetStartLBA();
+		}
+	}
+
+	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
+	boost::unique_lock<boost::shared_mutex> file_lock(file_to_temp_meta[filename]->file_mutex);
+
+	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
+	idx_t block_index = location / tfmeta->block_size;
+
+	if (!tfmeta->block_map.count(block_index)) {
+		TemporaryBlock *block = block_manager->AllocateBlock(nr_lbas);
+		tfmeta->block_map[block_index] = block;
+	}
+	idx_t lba = tfmeta->block_map[block_index]->GetStartLBA();
+
+	return lba;
 }
 
 void TemporaryFileMetadataManager::MoveLBALocation(const string &filename, idx_t lba_location) {
-	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
+	// boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 
-	// Use atomic compare-and-swap to update lba_location if the new location is larger
-	idx_t current_lba = tfmeta->lba_location.load();
-	while (lba_location > current_lba) {
-		// Attempt to update the lba_location atomically
-		if (tfmeta->lba_location.compare_exchange_weak(current_lba, lba_location)) {
-			return; // Update successful
-		}
+	// if (!file_to_temp_meta.count(filename)) {
+	// 	return;
+	// }
 
-		current_lba = tfmeta->lba_location.load(); // Reload current value
-	}
+	// TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
+	// boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
+
+	// // Use atomic compare-and-swap to update lba_location if the new location is larger
+	// idx_t current_lba = tfmeta->lba_location.load();
+	// do {
+	// 	// Location does not need to be updated from this thread anymore
+	// 	// Another thread have surpassed it
+	// 	if (lba_location < current_lba) {
+	// 		printf("MoveLBALocation %s, location %d\n", filename.c_str(), current_lba);
+	// 		break;
+	// 	}
+	// } while (!tfmeta->lba_location.compare_exchange_weak(current_lba, lba_location));
+
+	// printf("MoveLBALocation %s, location %d\n", filename.c_str(), lba_location);
 }
 
 void TemporaryFileMetadataManager::TruncateFile(const string &filename, idx_t new_size) {
+	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
+
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
 
-	idx_t new_lba_location = tfmeta->block_range->GetStartLBA() + (new_size / lba_size);
+	boost::unique_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
 
-	idx_t current_lba = tfmeta->lba_location.load();
-	while (current_lba > new_lba_location) {
+	idx_t to_block_index = new_size / tfmeta->block_size;
+	idx_t from_block_index = tfmeta->block_map.size();
 
-		// Attempt to update the lba_location atomically
-		if (tfmeta->lba_location.compare_exchange_weak(current_lba, new_lba_location)) {
-			return; // Update successful
-		}
-
-		current_lba = tfmeta->lba_location.load(); // Reload current value
+	for (idx_t i = from_block_index; i > to_block_index; i--) {
+		idx_t block_index = i - 1;
+		TemporaryBlock *block = tfmeta->block_map[block_index];
+		block_manager->FreeBlock(block);
+		tfmeta->block_map.erase(block_index);
 	}
+
+	// file_to_temp_meta[nvme_handle.path] = tfmeta;
 }
 
 void TemporaryFileMetadataManager::DeleteFile(const string &filename) {
-
-	if (!file_to_temp_meta.count(filename)) {
-		return;
-	}
+	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
 
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
-
-	if (tfmeta) {
-		tfmeta->is_active.store(false); // Soft delete the file
+	{
+		boost::unique_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
+		for (const auto &kv : tfmeta->block_map) {
+			block_manager->FreeBlock(kv.second);
+		}
 	}
+
+	file_to_temp_meta.erase(filename);
 }
 
 bool TemporaryFileMetadataManager::FileExists(const string &filename) {
+	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 
 	if (file_to_temp_meta.count(filename)) {
-		return file_to_temp_meta[filename]->is_active.load();
+		return true;
 	}
 
 	return false;
 }
 
 idx_t TemporaryFileMetadataManager::GetFileSizeLBA(const string &filename) {
+	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
 	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
-	idx_t location = tfmeta->lba_location.load();
+	boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
 
-	return tfmeta->lba_location.load() - tfmeta->block_range->GetStartLBA();
+	idx_t nr_lbas = (tfmeta->block_size * tfmeta->block_map.size()) / lba_size;
+
+	return nr_lbas;
 }
 
 void TemporaryFileMetadataManager::Clear() {
-	alloc_lock.lock();
-	for (auto &kv : file_to_temp_meta) {
-		block_manager->FreeBlock(kv.second->block_range);
-	}
+	boost::unique_lock<boost::shared_mutex> alloc_lock(temp_mutex);
 
-	file_to_temp_meta.clear();
-	alloc_lock.unlock();
+	for (const auto &kv : file_to_temp_meta) {
+		TempFileMetadata *tfmeta = kv.second.get();
+		boost::unique_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
 
-} // namespace duckdb
-
-idx_t TemporaryFileMetadataManager::GetAvailableSpace() {
-	idx_t available_space = lba_amount * lba_size;
-	for (auto &kv : file_to_temp_meta) {
-		if (kv.second->is_active.load()) {
-			idx_t size = (kv.second->lba_location.load() - kv.second->block_range->GetStartLBA()) * lba_size;
-			available_space -= size;
+		for (const auto &block : tfmeta->block_map) {
+			block_manager->FreeBlock(block.second);
 		}
 	}
 
-	return available_space;
+	file_to_temp_meta.clear();
+}
+
+idx_t TemporaryFileMetadataManager::GetSeekBound(const string &filename) {
+	boost::shared_lock<boost::shared_mutex> lock(temp_mutex);
+
+	TempFileMetadata *tfmeta = file_to_temp_meta[filename].get();
+
+	boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
+
+	return tfmeta->block_size * tfmeta->block_map.size();
+}
+
+idx_t TemporaryFileMetadataManager::GetAvailableSpace(idx_t lba_count, idx_t lba_start) {
+	boost::unique_lock<boost::shared_mutex> temp_lock(temp_mutex);
+	idx_t temp_max_bytes = ((lba_count - 1) - lba_start) * lba_size;
+	idx_t temp_used_bytes {};
+
+	for (const auto &kv : file_to_temp_meta) {
+		TempFileMetadata *tfmeta = kv.second.get();
+		boost::shared_lock<boost::shared_mutex> file_lock(tfmeta->file_mutex);
+
+		temp_used_bytes += kv.second->block_size * kv.second->block_map.size();
+	}
+
+	return (temp_max_bytes - temp_used_bytes);
 }
 
 void TemporaryFileMetadataManager::ListFiles(const string &directory,
                                              const std::function<void(const string &, bool)> &callback) {
+	boost::unique_lock<boost::shared_mutex> lock(temp_mutex);
+
 	for (const auto &kv : file_to_temp_meta) {
 		callback(StringUtil::GetFileName(kv.first), false);
 	}
 }
+
 } // namespace duckdb

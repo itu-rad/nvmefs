@@ -126,7 +126,7 @@ TEST_F(DiskInteractionTest, FileExistsReturnTrueWhenTemporaryFileExists) {
 	// Write something to create file
 	string hello = "hello temp";
 	vector<char> hello_buf {hello.begin(), hello.end()};
-	int bytes_to_read_write = hello.size();
+	int bytes_to_read_write = 32768;
 	string tmp_file_path = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
 	fh = file_system->OpenFile(tmp_file_path, flags);
 	fh->Write(hello_buf.data(), bytes_to_read_write);
@@ -139,7 +139,7 @@ TEST_F(DiskInteractionTest, FileExistsReturnTrueWhenTemporaryFileExists) {
 	vector<char> buffer(bytes_to_read_write);
 	fh->Read(buffer.data(), bytes_to_read_write, 0);
 
-	EXPECT_EQ(string(buffer.begin(), buffer.end()), hello);
+	EXPECT_EQ(string(buffer.begin(), buffer.begin() + hello.length()), hello);
 }
 
 TEST_F(DiskInteractionTest, GetFileSizeDbWithThreeBlocksReturnsThreeBlocksInBytes) {
@@ -192,20 +192,25 @@ TEST_F(DiskInteractionTest, GetFileSizeOpensTwoTemporaryFileReturnCorrectSizes) 
 
 	// Open two temporary files, write to the second
 	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
-	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S64k", 0);
+	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S64K", 0);
 	unique_ptr<FileHandle> tmp_fh_1 = file_system->OpenFile(tmp_file_path1, flags);
 	unique_ptr<FileHandle> tmp_fh_2 = file_system->OpenFile(tmp_file_path2, flags);
 
-	vector<char> buf_h {'H', 'E', 'L', 'L', 'O'};
-	tmp_fh_2->Write(buf_h.data(), buf_h.size(), geo.lba_size * 0);
-	vector<char> res_h(buf_h.size());
-	tmp_fh_2->Read(res_h.data(), buf_h.size(), geo.lba_size * 0);
+	vector<char> buf_w = vector<char>(65536);
+	buf_w[0] = 'H';
+	buf_w[1] = 'E';
+	buf_w[2] = 'L';
+	buf_w[3] = 'L';
+	buf_w[4] = 'O';
+	tmp_fh_2->Write(buf_w.data(), 65536, geo.lba_size * 0);
+	vector<char> res_h(buf_w.size());
+	tmp_fh_2->Read(res_h.data(), 65536, geo.lba_size * 0);
 
-	EXPECT_EQ(res_h, buf_h);
+	EXPECT_EQ(res_h, buf_w);
 
 	// Check file sizes
 	EXPECT_EQ(file_system->GetFileSize(*tmp_fh_1), 0);
-	EXPECT_EQ(file_system->GetFileSize(*tmp_fh_2), geo.lba_size * 1);
+	EXPECT_EQ(file_system->GetFileSize(*tmp_fh_2), 65536);
 }
 
 TEST_F(DiskInteractionTest, DirectoryExistsNoLoadedMetadataReturnsFalse) {
@@ -226,7 +231,12 @@ TEST_F(DiskInteractionTest, RemoveDirectoryGivenTemporyDirectoyRemovesSuccessful
 
 	// Write a file to temporary folder
 	string temp_filename = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
-	vector<char> buf {'H', 'E', 'L', 'L', 'O'};
+	vector<char> buf = vector<char>(32768);
+	buf[0] = 'H';
+	buf[1] = 'E';
+	buf[2] = 'L';
+	buf[3] = 'L';
+	buf[4] = 'O';
 	fh = file_system->OpenFile(temp_filename, flags);
 	fh->Write(buf.data(), buf.size());
 
@@ -300,7 +310,12 @@ TEST_F(DiskInteractionTest, RemoveFileGivenValidTempFileRemovesIt) {
 	// Write temporary file
 
 	string temp_filename = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
-	vector<char> buf {'H', 'E', 'L', 'L', 'O'};
+	vector<char> buf = vector<char>(32768);
+	buf[0] = 'H';
+	buf[1] = 'E';
+	buf[2] = 'L';
+	buf[3] = 'L';
+	buf[4] = 'O';
 	fh = file_system->OpenFile(temp_filename, flags);
 	fh->Write(buf.data(), buf.size());
 
@@ -398,8 +413,12 @@ TEST_F(DiskInteractionTest, WriteAndReadDataDoesNotOverlapOtherCategories) {
 	int wal_data_size = wal_data_ptr.size();
 	wal_file->Write(wal_data_ptr.data(), wal_data_size, 0);
 
-	string hello_tmp = "Hello, tmp!";
-	vector<char> tmp_data_ptr {hello_tmp.begin(), hello_tmp.end()};
+	vector<char> tmp_data_ptr = vector<char>(262144);
+	tmp_data_ptr[0] = 'H';
+	tmp_data_ptr[1] = 'E';
+	tmp_data_ptr[2] = 'L';
+	tmp_data_ptr[3] = 'L';
+	tmp_data_ptr[4] = 'O';
 	int tmp_data_size = tmp_data_ptr.size();
 	tmp_file->Write(tmp_data_ptr.data(), tmp_data_size, 0);
 
@@ -416,7 +435,7 @@ TEST_F(DiskInteractionTest, WriteAndReadDataDoesNotOverlapOtherCategories) {
 	// Check that the data is correct
 	EXPECT_EQ(string(db_buffer.data(), db_data_size), hello_db);
 	EXPECT_EQ(string(wal_buffer.data(), wal_data_size), hello_wal);
-	EXPECT_EQ(string(tmp_buffer.data(), tmp_data_size), hello_tmp);
+	EXPECT_EQ(tmp_buffer, tmp_data_ptr);
 }
 
 // TODO: Make this parameterized to test different byte offsets whithin different blocks
@@ -634,8 +653,8 @@ TEST_F(DiskInteractionTest, WriteOutOfMetadataAssignedLBARangeForTmpFile) {
 	// Ensure that metadata is created
 	file_system->OpenFile("nvmefs://test.db", FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
 
-	unique_ptr<FileHandle> file =
-	    file_system->OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ);
+	unique_ptr<FileHandle> file = file_system->OpenFile(
+	    file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_READ | FileOpenFlags::FILE_FLAGS_FILE_CREATE);
 	ASSERT_TRUE(file != nullptr);
 
 	// Attempt to write data out of range
@@ -748,15 +767,19 @@ TEST_F(DiskInteractionTest, WriteAndReadInsideTmpFile) {
 		file->Write(data_ptr, data_size, i * data_size);
 	}
 
-	string hello = "Hello, World!";
-	vector<char> write_buffer {hello.begin(), hello.end()};
+	vector<char> write_buffer = vector<char>(32768);
+	write_buffer[0] = 'H';
+	write_buffer[1] = 'E';
+	write_buffer[2] = 'L';
+	write_buffer[3] = 'L';
+	write_buffer[4] = 'O';
 	file->Write(write_buffer.data(), write_buffer.size(), data_size * 3);
 
 	vector<char> read_buffer(write_buffer.size());
 	file->Read(read_buffer.data(), read_buffer.size(), data_size * 3);
 
 	// Check that the data is correct
-	EXPECT_EQ(string(read_buffer.data(), read_buffer.size()), hello);
+	EXPECT_EQ(read_buffer, write_buffer);
 
 	delete[] data_ptr;
 }
@@ -824,17 +847,28 @@ TEST_F(DiskInteractionTest, ListFilesOfTemporaryDirectoryWithFilesYieldCorrectLi
 	unique_ptr<FileHandle> tmp_fh_1 = file_system->OpenFile(tmp_file_path1, flags);
 	unique_ptr<FileHandle> tmp_fh_2 = file_system->OpenFile(tmp_file_path2, flags);
 
-	vector<char> buf_h {'H', 'E', 'L', 'L', 'O'};
+	vector<char> buf_h = vector<char>(32768);
+	buf_h[0] = 'H';
+	buf_h[1] = 'E';
+	buf_h[2] = 'L';
+	buf_h[3] = 'L';
+	buf_h[4] = 'O';
+	vector<char> buf_h2 = vector<char>(65536);
+	buf_h2[0] = 'H';
+	buf_h2[1] = 'E';
+	buf_h2[2] = 'L';
+	buf_h2[3] = 'L';
+	buf_h2[4] = 'O';
 	tmp_fh_1->Write(buf_h.data(), buf_h.size(), 0);
-	tmp_fh_2->Write(buf_h.data(), buf_h.size(), 0);
+	tmp_fh_2->Write(buf_h2.data(), buf_h2.size(), 0);
 
 	vector<char> res1_h(buf_h.size());
-	vector<char> res2_h(buf_h.size());
+	vector<char> res2_h(buf_h2.size());
 	tmp_fh_1->Read(res1_h.data(), buf_h.size(), 0);
-	tmp_fh_2->Read(res2_h.data(), buf_h.size(), 0);
+	tmp_fh_2->Read(res2_h.data(), buf_h2.size(), 0);
 
 	EXPECT_EQ(res1_h, buf_h);
-	EXPECT_EQ(res2_h, buf_h);
+	EXPECT_EQ(res2_h, buf_h2);
 
 	vector<std::tuple<string, bool>> results;
 
@@ -909,17 +943,17 @@ TEST_F(DiskInteractionTest, GetAvailableDiskSpaceDefaultDirWritesInTmpAndWalRetu
 	// SingleFileBlockManager::CreateNewDatabase() writes 3 headers (3 LBAs)
 
 	// Temp file with 2 LBAs and WAL with 1 LBA written
-	idx_t expected_size = (geo.lba_count * geo.lba_size) - (2 * geo.lba_size) - geo.lba_size - (4 * geo.lba_size);
+	idx_t expected_size = (geo.lba_count * geo.lba_size) - (32768) - geo.lba_size - (4 * geo.lba_size);
 
 	// Allocate files and write to them
 	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
 	unique_ptr<FileHandle> tmp_fh = file_system->OpenFile(tmp_file_path1, flags);
 	unique_ptr<FileHandle> wal_fh = file_system->OpenFile("nvmefs://test.db.wal", flags);
-	vector<char> tmp_buf(2 * geo.lba_size);
+	vector<char> tmp_buf(32768);
 	vector<char> wal_buf(geo.lba_size);
-	memset(tmp_buf.data(), 1, 2 * geo.lba_size);
+	memset(tmp_buf.data(), 1, tmp_buf.size());
 	memset(wal_buf.data(), 1, geo.lba_size);
-	tmp_fh->Write(tmp_buf.data(), 2 * geo.lba_size);
+	tmp_fh->Write(tmp_buf.data(), 32768);
 	wal_fh->Write(wal_buf.data(), geo.lba_size);
 
 	// Get size and evaluate
@@ -941,17 +975,17 @@ TEST_F(DiskInteractionTest, GetAvailableDiskSpaceTmpDirectoryWithTwoFilesReturnC
 	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S64K", 0);
 	unique_ptr<FileHandle> test1_fh = file_system->OpenFile(tmp_file_path1, flags);
 	unique_ptr<FileHandle> test2_fh = file_system->OpenFile(tmp_file_path2, flags);
-	vector<char> test1_buf(3 * geo.lba_size);
-	vector<char> test2_buf(2 * geo.lba_size);
-	memset(test1_buf.data(), 1, 3 * geo.lba_size);
-	memset(test2_buf.data(), 1, 2 * geo.lba_size);
-	test1_fh->Write(test1_buf.data(), 3 * geo.lba_size);
-	test2_fh->Write(test2_buf.data(), 2 * geo.lba_size);
+	vector<char> test1_buf(32768);
+	vector<char> test2_buf(65536);
+	memset(test1_buf.data(), 1, test1_buf.size());
+	memset(test2_buf.data(), 1, test2_buf.size());
+	test1_fh->Write(test1_buf.data(), test1_buf.size());
+	test2_fh->Write(test2_buf.data(), test2_buf.size());
 
 	// check
 	// Cheating a bit - max_temp_size is private.
 	// The temp dir size for the tests is 640 LBAs
-	idx_t expected_size = (32000 * 4096 + 64000 * 4096) - (3 * geo.lba_size) - (2 * geo.lba_size);
+	idx_t expected_size = (32000 * 4096 + 64000 * 4096) - (test1_buf.size()) - (test2_buf.size());
 	optional_idx result_size = file_system->GetAvailableDiskSpace("nvmefs:///tmp");
 	ASSERT_TRUE(result_size.IsValid());
 	EXPECT_EQ(result_size.GetIndex(), expected_size);
@@ -1197,6 +1231,60 @@ TEST_F(BlockManagerTest, FreelistCoalesceLeftInTheMiddleOfTheList) {
 	EXPECT_EQ(block11->GetEndLBA(), 55);
 	EXPECT_EQ(block11->GetSizeInBytes(), 8 * 4096);
 	EXPECT_EQ(block11->IsFree(), false);
+}
+
+class TemporaryMetadataManagerTest : public testing::Test {
+protected:
+	TemporaryMetadataManagerTest() {
+		// Set up the test environment
+		metadata_manager = make_uniq<TemporaryFileMetadataManager>(320, 64000320, 4096);
+	}
+
+	unique_ptr<TemporaryFileMetadataManager> metadata_manager;
+};
+
+TEST_F(TemporaryMetadataManagerTest, CreateFilesOfDifferentSizes) {
+
+	string tmp_file_path1 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S32K", 0);
+	metadata_manager->CreateFile(tmp_file_path1);
+	auto file32 = metadata_manager->GetOrCreateFile(tmp_file_path1);
+
+	EXPECT_EQ(file32->block_size, 32768);
+
+	string tmp_file_path2 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S64K", 0);
+	metadata_manager->CreateFile(tmp_file_path2);
+	auto file64 = metadata_manager->GetOrCreateFile(tmp_file_path2);
+	EXPECT_EQ(file64->block_size, 65536);
+
+	string tmp_file_path3 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S96K", 0);
+	metadata_manager->CreateFile(tmp_file_path3);
+	auto file96 = metadata_manager->GetOrCreateFile(tmp_file_path3);
+	EXPECT_EQ(file96->block_size, 98304);
+
+	string tmp_file_path4 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S128K", 0);
+	metadata_manager->CreateFile(tmp_file_path4);
+	auto file128 = metadata_manager->GetOrCreateFile(tmp_file_path4);
+	EXPECT_EQ(file128->block_size, 131072);
+
+	string tmp_file_path5 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S160K", 0);
+	metadata_manager->CreateFile(tmp_file_path5);
+	auto file160 = metadata_manager->GetOrCreateFile(tmp_file_path5);
+	EXPECT_EQ(file160->block_size, 163840);
+
+	string tmp_file_path6 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S192K", 0);
+	metadata_manager->CreateFile(tmp_file_path6);
+	auto file192 = metadata_manager->GetOrCreateFile(tmp_file_path6);
+	EXPECT_EQ(file192->block_size, 196608);
+
+	string tmp_file_path7 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "S224K", 0);
+	metadata_manager->CreateFile(tmp_file_path7);
+	auto file224 = metadata_manager->GetOrCreateFile(tmp_file_path7);
+	EXPECT_EQ(file224->block_size, 229376);
+
+	string tmp_file_path8 = StringUtil::Format("nvmefs:///tmp/duckdb_temp_storage_%s-%llu.tmp", "DEFAULT", 0);
+	metadata_manager->CreateFile(tmp_file_path8);
+	auto filedefault = metadata_manager->GetOrCreateFile(tmp_file_path8);
+	EXPECT_EQ(filedefault->block_size, 262144);
 }
 
 } // namespace duckdb

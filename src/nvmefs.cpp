@@ -78,7 +78,7 @@ NvmeFileSystem::NvmeFileSystem(NvmeConfig config, unique_ptr<Device> device)
 }
 
 NvmeFileSystem::~NvmeFileSystem() {
-	if(metadata) {
+	if (metadata) {
 		WriteMetadata(*metadata);
 	}
 }
@@ -391,17 +391,16 @@ optional_idx NvmeFileSystem::GetAvailableDiskSpace(const string &path) {
 	if (StringUtil::Equals(path.data(), NVMEFS_PATH_PREFIX.data())) {
 		idx_t db_max_bytes = ((metadata->wal_start - 1) - metadata->db_start) * geo.lba_size;
 		idx_t wal_max_bytes = ((metadata->tmp_start - 1) - metadata->wal_start) * geo.lba_size;
-		idx_t temp_max_bytes = ((geo.lba_count - 1) - metadata->tmp_start) * geo.lba_size;
 
 		idx_t db_used_bytes = (db_location.load() - metadata->db_start) * geo.lba_size;
 		idx_t wal_used_bytes = (wal_location.load() - metadata->wal_start) * geo.lba_size;
 		idx_t temp_used_bytes {};
 
-		idx_t temp_avail_bytes = temp_meta_manager->GetAvailableSpace();
+		idx_t temp_avail_bytes = temp_meta_manager->GetAvailableSpace(geo.lba_count, metadata->tmp_start);
 
 		remaining = (db_max_bytes - db_used_bytes) + (wal_max_bytes - wal_used_bytes) + temp_avail_bytes;
 	} else if (StringUtil::Equals(path.data(), NVMEFS_TMP_DIR_PATH.data())) {
-		remaining = temp_meta_manager->GetAvailableSpace();
+		remaining = temp_meta_manager->GetAvailableSpace(geo.lba_count, metadata->tmp_start);
 	}
 	return remaining;
 }
@@ -588,7 +587,7 @@ idx_t NvmeFileSystem::GetLBA(const string &filename, idx_t nr_bytes, idx_t locat
 		lba = metadata->wal_start + lba_location;
 		break;
 	case MetadataType::TEMPORARY: {
-		lba = temp_meta_manager->GetLBA(filename, lba_location);
+		lba = temp_meta_manager->GetLBA(filename, location, nr_lbas);
 	} break;
 	case MetadataType::DATABASE:
 		lba = metadata->db_start + lba_location;

@@ -1,5 +1,6 @@
 import pytest
 import duckdb
+import os
 
 from utils.device import NvmeDevice
 
@@ -19,6 +20,19 @@ def pytest_addoption(parser):
         default="/dev/ng1n1"
     )
 
+    parser.addoption(
+        "--spdk",
+        help="Use spdk",
+        action="store_true",
+        default=False
+    )
+
+    parser.addoption(
+        "--pci",
+        type=str,
+        help="PCI address if spdk is used"
+    )
+
 @pytest.fixture(scope="session")
 def configure(pytestconfig):
     path = pytestconfig.getoption("extension_dir_path")
@@ -36,9 +50,20 @@ def device_path(configure, pytestconfig):
 
 
 @pytest.fixture(scope="module")
-def device(device_path):
+def device(device_path, pytestconfig):
     device = NvmeDevice(device_path)
 
+    spdk = pytestconfig.getoption("spdk")
+
+    if spdk:
+        pci_address = pytestconfig.getoption("pci")
+        device.device_path = pci_address
+        os.system("HUGEMEM=4096 xnvme-driver")
+
     yield device
+
+    if spdk:
+        device.device_path = device_path
+        os.system("xnvme-driver reset")
 
     device.deallocate(1)

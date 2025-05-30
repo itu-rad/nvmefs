@@ -142,6 +142,11 @@ DeviceGeometry NvmeDevice::LoadDeviceGeometry() {
 }
 
 void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
+	if (StringUtil::Equals(this->backend.data(), "spdk")) {
+        opts.be = "spdk";
+		return;
+    }
+
 	if (this->async) {
 		opts.async = this->backend.data();
 		if (StringUtil::Equals(this->backend.data(), "io_uring_cmd")) {
@@ -218,10 +223,16 @@ idx_t NvmeDevice::ReadAsync(void *buffer, const CmdContext &context) {
 
 	FreeDeviceBuffer(dev_buffer);
 
+	// auto end_time = std::chrono::high_resolution_clock::now();
+	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+	// // Print the duration
+	// printf("ReadAsync took %d milliseconds.\n", duration.count());
+
 	return ctx.nr_lbas;
 }
 
 idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
+	// auto start_time = std::chrono::high_resolution_clock::now();
 	const NvmeCmdContext &ctx = static_cast<const NvmeCmdContext &>(context);
 	D_ASSERT(ctx.nr_lbas > 0);
 	// We only support offset reads within a single block
@@ -269,6 +280,11 @@ idx_t NvmeDevice::WriteAsync(void *buffer, const CmdContext &context) {
 	} while (status != std::future_status::ready);
 
 	FreeDeviceBuffer(dev_buffer);
+
+	// auto end_time = std::chrono::high_resolution_clock::now();
+	// auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+	// // Print the duration
+	// printf("WriteAsync took %d milliseconds.\n", duration.count());
 
 	return ctx.nr_lbas;
 }
@@ -331,6 +347,8 @@ void NvmeDevice::InitializePlacementHandles() {
 	for (int i = 0; i < max_placement_handles; ++i) {
 		placement_handlers.emplace_back(ruhs->desc[i].pi);
 	}
+
+	xnvme_buf_free(device, ruhs);
 }
 
 idx_t NvmeDevice::GetThreadIndex() {

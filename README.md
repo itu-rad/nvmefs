@@ -143,7 +143,8 @@ To fully utilize the extension you need to specify your configuration, which mai
 CREATE PERSISTENT SECRET nvmefs (
   TYPE NVMEFS,
   nvme_device_path <path_to_nvme_device>,
-  fdp_plhdls       <amount_of_placement_handles_on_device>
+  fdp_plhdls       <amount_of_placement_handles_on_device>,
+  backend          <storage backend to use>
 )
 ```
 

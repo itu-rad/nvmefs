@@ -8,6 +8,13 @@ This extension, nvmefs, allow you to leverage NVMe SSD device features and bypas
 
 
 ## Building
+
+### Prerequisites
+
+To be able to build DuckDB, a guide can be found at the [DuckDB build guide](https://duckdb.org/docs/stable/dev/building/overview). 
+
+Additionally, our repository requires Python with version 3.10.12 or above, to be able run our tests.
+
 ### Managing dependencies
 DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the [installation instructions](https://vcpkg.io/en/getting-started) or just run the following:
 ```shell
@@ -68,12 +75,26 @@ USE nvme;
 
 You can now execute SQL statements against the attached database, leveraging the nvmefs extension.
 
-## Running the tests
+## Running the Tests
 
-Different tests can be created for DuckDB extensions. The primary way of testing DuckDB extensions should be the SQL tests in `./test/sql`. These SQL tests can be run using:
-```sh
-make test
+This repository provides two types of test runners: unit/integration tests and end-to-end tests.  
+- The unit and integration tests are located in the `./tests/gtest` directory.
+- The end-to-end tests are located in the `./tests/e2e` directory.
+
+To run the unit and integration tests, execute:
+
+```bash
+make gtest
 ```
+
+To run the end-to-end tests, execute:
+
+```bash
+make e2e-test
+```
+
+> **Note:**  
+> The end-to-end tests are implemented in Python. The provided make target will automatically set up a Python environment and install all
 
 ## Development
 

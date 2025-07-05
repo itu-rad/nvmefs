@@ -4,7 +4,7 @@ This repository is based on https://github.com/duckdb/extension-template, check 
 
 ---
 
-This extension, Nvmefs, allow you to ... <extension_goal>.
+This extension, nvmefs, allow you to leverage NVMe SSD device features and bypassing Kernel filesystem layers using IO Passthru. The goal of the extension is to provide faster elapsed query times for I/O intensive queries.
 
 
 ## Building
@@ -33,56 +33,46 @@ The main binaries that will be built are:
 - `nvmefs.duckdb_extension` is the loadable binary as it would be distributed.
 
 ## Running the extension
-To run the extension code, simply start the shell with `./build/release/duckdb`.
+To use the extension, start the DuckDB shell with:
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `nvmefs()` that takes a string arguments and returns a string:
+```sh
+./build/release/duckdb
 ```
-D select nvmefs('Jane') as result;
-┌───────────────┐
-│    result     │
-│    varchar    │
-├───────────────┤
-│ Nvmefs Jane 🐥 │
-└───────────────┘
+
+Before first use, you must configure the extension. Please refer to the **Configuration** section for details. As an example, you can create a configuration with the following SQL:
+
+```sql
+CREATE PERSISTENT SECRET nvmefs (
+  TYPE NVMEFS,
+  nvme_device_path '/dev/ng1n0',
+  backend          'io_uring_cmd'
+);
 ```
+
+After executing the above statement, restart DuckDB to ensure the extension picks up the new configuration.  
+To verify that the configuration is active, run:
+
+```sql
+CALL config_print();
+```
+
+> **Note:**  
+> If you encounter an error indicating the device cannot be opened, try running the DuckDB executable with elevated privileges (e.g., using `sudo`).
+
+The extension registers a new file system handler for file paths prefixed with `nvmefs://`. To store data on the NVMe device using this extension, attach a database as follows:
+
+```sql
+ATTACH DATABASE 'nvmefs://example.db' AS nvme (READ_WRITE);
+USE nvme;
+```
+
+You can now execute SQL statements against the attached database, leveraging the nvmefs extension.
 
 ## Running the tests
+
 Different tests can be created for DuckDB extensions. The primary way of testing DuckDB extensions should be the SQL tests in `./test/sql`. These SQL tests can be run using:
 ```sh
 make test
-```
-
-### Installing the deployed binaries
-To install your extension binaries from S3, you will need to do two things. Firstly, DuckDB should be launched with the
-`allow_unsigned_extensions` option set to true. How to set this will depend on the client you're using. Some examples:
-
-CLI:
-```shell
-duckdb -unsigned
-```
-
-Python:
-```python
-con = duckdb.connect(':memory:', config={'allow_unsigned_extensions' : 'true'})
-```
-
-NodeJS:
-```js
-db = new duckdb.Database(':memory:', {"allow_unsigned_extensions": "true"});
-```
-
-Secondly, you will need to set the repository endpoint in DuckDB to the HTTP url of your bucket + version of the extension
-you want to install. To do this run the following SQL query in DuckDB:
-```sql
-SET custom_extension_repository='bucket.s3.eu-west-1.amazonaws.com/<your_extension_name>/latest';
-```
-Note that the `/latest` path will allow you to install the latest extension version available for your current version of
-DuckDB. To specify a specific version, you can pass the version instead.
-
-After running these steps, you can install and load your extension using the regular INSTALL/LOAD commands in DuckDB:
-```sql
-INSTALL nvmefs
-LOAD nvmefs
 ```
 
 ## Development
@@ -133,20 +123,40 @@ This configuration ensures proper integration with the CMake extension in VS Cod
 
 ## Configuration
 
-To fully utilize the extension you need to specify your configuration, which mainly consist of device information. Follow the guide below.
+To fully utilize the extension, you must specify your configuration, primarily consisting of device information. Follow these steps:
 
-1. Open Duckdb
+1. Open DuckDB.
+2. Create a new secret named `nvmefs`(See the section **Available Backend** for available backends):
 
-2. Create a new secret called `nvmfs`
+   ```sql
+   CREATE PERSISTENT SECRET nvmefs (
+     TYPE NVMEFS,
+     nvme_device_path <path_to_nvme_device>,
+     backend          <storage backend to use>
+   );
+   ```
 
-```
-CREATE PERSISTENT SECRET nvmefs (
-  TYPE NVMEFS,
-  nvme_device_path <path_to_nvme_device>,
-  backend          <storage backend to use>
-)
-```
+3. Restart DuckDB.
+4. Your configuration is now saved.
 
-3. Restart Duckdb
+### Available backends
 
-4. Your configuration is now saved
+he following backends are available. As the extension depends on the xNVMe library, the list below mirrors its supported backends:
+
+| Backend       | value       |  Asynchronous?  |
+|---------------|-------------|-----------------|
+| io_uring      | io_uring    | true            |
+| io_uring_cmd  | io_uring    | true            |
+| libaio        | libaio      | true            |
+| io_ring       | io_ring     | true            |
+| posix         | posix       | true            |
+| iocp          | iocp        | true            |
+| iocp_th       | iocp_th     | true            |
+| emu           | emu         | true            |
+| thrpool       | thrpool     | true            |
+| nil           | nil         | true            |
+| spdk          | spdk_async  | true            |
+| spdk          | spdk_sync   | false           |
+| nvme          | nvme        | false           |
+
+For details on operating system compatibility for each backend, refer to the [xNVMe backend documentation](https://xnvme.io/backends/index.html). 

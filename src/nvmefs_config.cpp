@@ -28,7 +28,6 @@ static unique_ptr<BaseSecret> CreateNvmefsSecretFromConfig(ClientContext &contex
 
 void SetNvmefsSecretParameters(CreateSecretFunction &function) {
 	function.named_parameters["nvme_device_path"] = LogicalType::VARCHAR;
-	function.named_parameters["fdp_plhdls"] = LogicalType::BIGINT;
 	function.named_parameters["backend"] = LogicalType::VARCHAR;
 }
 
@@ -61,7 +60,6 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 
 	string device;
 	string backend;
-	int64_t plhdls = 0;
 	// TODO: ensure that we always have value here. It is possible to not have value
 	idx_t max_temp_size = 200ULL << 30; // 200 GiB
 	if (config.options.maximum_swap_space != DConstants::INVALID_INDEX) {
@@ -73,11 +71,8 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 
 	secret_reader.TryGetSecretKeyOrSetting<string>("nvme_device_path", "nvme_device_path", device);
 	secret_reader.TryGetSecretKeyOrSetting<string>("backend", "backend", backend);
-	secret_reader.TryGetSecretKeyOrSetting<int64_t>("fdp_plhdls", "fdp_plhdls", plhdls);
 
 	config.AddExtensionOption("nvme_device_path", "Path to NVMe device", {LogicalType::VARCHAR}, Value(device));
-	config.AddExtensionOption("fdp_plhdls", "Amount of available placement handlers on the device",
-	                          {LogicalType::BIGINT}, Value(plhdls));
 	config.AddExtensionOption("backend", "xnvme backend used for IO", {LogicalType::VARCHAR}, Value(backend));
 
 	backend = SanatizeBackend(backend);
@@ -85,7 +80,6 @@ NvmeConfig NvmeConfigManager::LoadConfig(DatabaseInstance &instance) {
 	return NvmeConfig {.device_path = device,
 	                   .backend = backend,
 	                   .async = IsAsynchronousBackend(backend),
-	                   .plhdls = static_cast<idx_t>(plhdls),
 	                   .max_temp_size = max_temp_size,
 	                   .max_wal_size = max_wal_size,
 	                   .max_threads = max_threads};

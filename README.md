@@ -13,7 +13,7 @@ This extension, nvmefs, allow you to leverage NVMe SSD device features and bypas
 
 To be able to build DuckDB, a guide can be found at the [DuckDB build guide](https://duckdb.org/docs/stable/dev/building/overview). 
 
-Additionally, our repository requires Python with version 3.10.12 or above, to be able run our tests.
+Additionally, our repository requires Python with version 3.13.2 to be able run our tests.
 
 ### Managing dependencies
 DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the [installation instructions](https://vcpkg.io/en/getting-started) or just run the following:

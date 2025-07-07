@@ -2,9 +2,8 @@
 
 namespace duckdb {
 thread_local optional_idx NvmeDevice::index = optional_idx();
-NvmeDevice::NvmeDevice(const string &device_path, const idx_t placement_handles, const string &backend,
-                       const bool async, const idx_t max_threads)
-    : dev_path(device_path), plhdls(placement_handles), backend(backend), async(async), max_threads(max_threads) {
+NvmeDevice::NvmeDevice(const string &device_path, const string &backend, const bool async, const idx_t max_threads)
+    : dev_path(device_path), backend(backend), async(async), max_threads(max_threads) {
 	xnvme_opts opts = xnvme_opts_default();
 	PrepareOpts(opts);
 	device = xnvme_dev_open(device_path.c_str(), &opts);
@@ -143,9 +142,9 @@ DeviceGeometry NvmeDevice::LoadDeviceGeometry() {
 
 void NvmeDevice::PrepareOpts(xnvme_opts &opts) {
 	if (StringUtil::Equals(this->backend.data(), "spdk")) {
-        opts.be = "spdk";
+		opts.be = "spdk";
 		return;
-    }
+	}
 
 	if (this->async) {
 		opts.async = this->backend.data();

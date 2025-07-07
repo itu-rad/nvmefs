@@ -31,7 +31,6 @@ protected:
 
 		NvmeConfig testConfig {
 		    .device_path = "/dev/ng1n1",
-		    .plhdls = 8,
 		    .max_temp_size = 32000 * block_size + 64000 * block_size,
 		    .max_wal_size = 1ULL << 25 // 32 MiB
 		};

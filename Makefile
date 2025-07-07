@@ -24,7 +24,7 @@ clean-gtest: clean gtest
 
 clean-run: clean release run
 
-integration-test: release
-	@bash "./test/integration/run.sh" './build/release/extension/nvmefs'
+e2e-test: release
+	@bash "./test/e2e/run.sh" './build/release/extension/nvmefs'
 	@rm -rf ./build/release/extension/nvmefs/v1.2.0
 	@EXTENSION_PATH="$${HOME}/.duckdb/extensions/v1.2.0/$$(cat build/release/duckdb_platform_out)/nvmefs.*" && rm $$EXTENSION_PATH

@@ -51,7 +51,7 @@ Before first use, you must configure the extension. Please refer to the **Config
 ```sql
 CREATE PERSISTENT SECRET nvmefs (
   TYPE NVMEFS,
-  nvme_device_path '/dev/ng1n0',
+  nvme_device_path '/dev/ng1n1',
   backend          'io_uring_cmd'
 );
 ```

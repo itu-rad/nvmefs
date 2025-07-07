@@ -94,7 +94,7 @@ make e2e-test
 ```
 
 > **Note:**  
-> The end-to-end tests are implemented in Python. The provided make target will automatically set up a Python environment and install all
+> The end-to-end tests are implemented in Python. The provided make target will automatically set up a Python environment and install all dependencies
 
 ## Development
 

@@ -15,7 +15,6 @@ def tpch_database_connection(device):
     con.execute(f"""CREATE OR REPLACE PERSISTENT SECRET nvmefs (
                         TYPE NVMEFS,
                         nvme_device_path '{device.device_path}',
-                        fdp_plhdls       '{7}',
                         backend          'io_uring_cmd'
                     );""")
 

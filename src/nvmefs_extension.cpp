@@ -62,8 +62,16 @@ static void AddConfig(DatabaseInstance &instance) {
 	NvmeConfig nvmeConfig = NvmeConfigManager::LoadConfig(instance);
 
 	// Add extension options
-	auto &fs = instance.GetFileSystem();
-	fs.RegisterSubSystem(make_uniq<NvmeFileSystem>(nvmeConfig));
+	if (!nvmeConfig.device_path.empty()) {
+
+		auto &fs = instance.GetFileSystem();
+		fs.RegisterSubSystem(make_uniq<NvmeFileSystem>(nvmeConfig));
+	} else {
+		duckdb::Printer::Print(
+		    "Nvmefs extension loaded but no nvme_device_path specified. NvmeFileSystem will not be registered.");
+		duckdb::Printer::Print(
+		    "To use the NvmeFileSystem, set the 'nvme_device_path' configuration option to the path of the NVMe device and restart the database.");
+	}
 }
 
 static void LoadInternal(DatabaseInstance &instance) {

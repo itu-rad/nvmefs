@@ -59,6 +59,6 @@ private:
 	idx_t lba_amount;
 	unique_ptr<NvmeTemporaryBlockManager> block_manager;
 	map<string, unique_ptr<TempFileMetadata>> file_to_temp_meta;
-	static boost::shared_mutex temp_mutex;
+	inline static boost::shared_mutex temp_mutex;
 };
 } // namespace duckdb

@@ -130,6 +130,6 @@ private:
 	atomic<idx_t> wal_location;
 	idx_t max_temp_size;
 	idx_t max_wal_size;
-	static std::recursive_mutex temp_lock;
+	inline static std::recursive_mutex temp_lock;
 };
 } // namespace duckdb
